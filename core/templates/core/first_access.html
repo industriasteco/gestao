@@ -1,0 +1,1 @@
+{% extends 'core/base.html' %}{% block content %}<div class="card"><h1>Crie seu acesso ao ERP</h1><p>Esta tela funciona uma única vez. Copie a chave SETUP_KEY das configurações da hospedagem. Não envie essa chave nem sua senha no chat.</p><form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button>Criar meu acesso</button></form></div>{% endblock %}

@@ -1,0 +1,6 @@
+Django==5.2.19
+psycopg[binary]==3.2.13
+reportlab==4.4.10
+pypdf==6.12.2
+gunicorn==23.0.0
+whitenoise==6.11.0

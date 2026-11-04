@@ -1,0 +1,15 @@
+asgiref==3.13.0
+charset-normalizer==3.5.2
+Django==5.2.19
+et_xmlfile==2.0.0
+gunicorn==23.0.0
+openpyxl==3.1.5
+packaging==26.3
+pillow==13.0.0
+psycopg==3.2.13
+psycopg-binary==3.2.13
+pypdf==6.12.2
+reportlab==4.4.10
+sqlparse==0.6.1
+typing_extensions==4.16.0
+whitenoise==6.11.0
