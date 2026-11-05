@@ -29,8 +29,8 @@ class CompanyForm(ScopedForm):
 
 class ClientForm(ScopedForm):
     class Meta:
-        model=Client;fields=['company','name','legal_name','tax_id','email','phone','address','notes']
-        labels={'company':'Empresa','name':'Nome do cliente','legal_name':'Razão social','tax_id':'CPF / CNPJ confirmado (somente números)','email':'E-mail para fechamento','phone':'Telefone / WhatsApp','address':'Endereço','notes':'Observações'}
+        model=Client;fields=['company','name','legal_name','tax_id','email','phone','address','notes','requires_purchase_order']
+        labels={'company':'Empresa','name':'Nome do cliente','legal_name':'Razão social','tax_id':'CPF / CNPJ confirmado (somente números)','email':'E-mail para fechamento','phone':'Telefone / WhatsApp','requires_purchase_order':'Exigir ordem de compra antes de emitir para este cliente','address':'Endereço','notes':'Observações'}
 
 class ProductForm(ScopedForm):
     amount=forms.DecimalField(label='Valor de venda padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
@@ -66,8 +66,9 @@ class RecurrenceForm(ScopedForm):
 class ProductionInfoForm(forms.ModelForm):
     reason=forms.CharField(label='Motivo do ajuste',min_length=3)
     class Meta:
-        model=Order;fields=['shift','baker','separator','driver','notes']
-        labels={'shift':'Turno','baker':'Padeiro responsável','separator':'Responsável pela separação','driver':'Motorista','notes':'Observações'}
+        model=Order;fields=['purchase_order','shift','baker','separator','driver','notes']
+        help_texts={'purchase_order':'Referência enviada pelo cliente; é diferente do número da notinha.'}
+        labels={'purchase_order':'Ordem de compra do cliente (número / referência)','shift':'Turno','baker':'Padeiro responsável','separator':'Responsável pela separação','driver':'Motorista','notes':'Observações'}
 
 class MonthForm(forms.Form):
     company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa')
@@ -81,8 +82,9 @@ class MonthForm(forms.Form):
 class ManualOrderForm(ScopedForm):
     key=forms.UUIDField(widget=forms.HiddenInput)
     class Meta:
-        model=Order;fields=['company','client','date','time','slot','shift','baker','driver','notes']
-        labels={'company':'Empresa','client':'Cliente','date':'Dia da entrega','time':'Horário','slot':'Identificação da entrega','shift':'Turno','baker':'Padeiro','driver':'Motorista','notes':'Observações'}
+        model=Order;fields=['company','client','purchase_order','date','time','slot','shift','baker','driver','notes']
+        help_texts={'purchase_order':'Informe o número ou referência da OC enviada pelo cliente, se disponível.'}
+        labels={'company':'Empresa','client':'Cliente','purchase_order':'Ordem de compra do cliente (número / referência)','date':'Dia da entrega','time':'Horário','slot':'Identificação da entrega','shift':'Turno','baker':'Padeiro','driver':'Motorista','notes':'Observações'}
 
 class ManualItemForm(forms.Form):
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
@@ -201,6 +203,7 @@ class CashBagForm(forms.Form):
     notes=forms.CharField(label='Observação da conferência (obrigatória se houver diferença)',required=False,widget=forms.Textarea)
 
 class StatementForm(forms.Form):
+    purchase_order=forms.CharField(label='Ordem de compra do cliente para este fechamento (opcional)',max_length=50,required=False,help_text='Preenche a referência dos pedidos que ainda não tenham OC. As OCs já registradas são preservadas.')
     company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa fornecedora')
     client=forms.ModelChoiceField(queryset=Client.objects.none(),label='Cliente')
     start=forms.DateField(label='Início do período',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))

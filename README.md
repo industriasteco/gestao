@@ -40,7 +40,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-109 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+118 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -87,7 +87,7 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0014`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0016`.
 
 
 ### Contas a pagar e XML de compras
@@ -97,3 +97,8 @@ Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira 
 Pagamentos de fornecedores são registros internos, parciais ou totais, com comprovante/referência, sem movimentação bancária automática. XMLs de homologação geram contas de teste, fora dos totais reais. Há cadastro de despesas sem XML e fornecedores, isolamento por empresa e novo resumo de compromissos no painel.
 
 O objetivo fiscal confirmado pelo usuário é substituir os emissores atuais por este ERP. TECO usa hoje Sistema Imagem e NONA usa Multicomp; a migration `0014` registra essa informação apenas quando o campo da empresa está vazio. **Emissão fiscal própria ainda não está implementada**: não há assinatura de NF-e/NFC-e, transmissão, autorização ou eventos SEFAZ. [Fluxo de compras e transição fiscal](docs/COMPRAS_XML_E_FISCAL.md) define o que está entregue e a próxima etapa. Não há dependência planejada de integrar Imagem ou Multicomp para a futura emissão própria.
+
+
+### Ordem de compra do cliente
+
+Informe a OC no pedido, antes da emissão, ou no fechamento por período quando a referência chegar apenas no faturamento mensal. As notinhas, romaneios, PDF de fechamento e CSV aprovado preservam a referência. A OC do fechamento preenche apenas pedidos sem OC, sem substituir referências próprias dos pedidos. O cliente pode ser configurado para exigir OC antes de emitir a notinha. Documentos já emitidos não são alterados.

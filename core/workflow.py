@@ -37,6 +37,7 @@ def issue(user,order_id):
     if order.status in ('EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO'):
         return Document.objects.get(key=f'order:{order.pk}:v1')
     if order.status!='CONFERIDO':raise ValidationError('Confira a produção antes de emitir.')
+    if order.client.requires_purchase_order and not order.purchase_order.strip():raise ValidationError('Informe a ordem de compra exigida pelo cliente antes de emitir.')
     if not order.shift or not order.baker.strip():raise ValidationError('Informe turno e padeiro antes de emitir.')
     if order.client.company_id!=order.company_id:raise ValidationError('Empresa do cliente incompatível.')
     if not order.company.active or not order.client.active:raise ValidationError('Empresa ou cliente inativo.')
@@ -51,7 +52,7 @@ def issue(user,order_id):
     if not items:raise ValidationError('Pedido sem itens positivos.')
     # CNPJ intentionally stays missing in homologation; never invent a tax identity.
     number=f'{order.company.code}-TESTE-{str(order.pk)[:12].upper()}'
-    snapshot=dict(company_code=order.company.code,company_name=order.company.name,legal_name=order.company.legal_name,company_address=order.company.address,company_phone=order.company.phone,company_email=order.company.email,client_address=order.client.address,client_contact=order.client.phone or order.client.email,baker=order.baker,separator=order.separator,shift=order.shift,notes=order.notes,cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
+    snapshot=dict(company_code=order.company.code,company_name=order.company.name,legal_name=order.company.legal_name,company_address=order.company.address,company_phone=order.company.phone,company_email=order.company.email,client_address=order.client.address,client_contact=order.client.phone or order.client.email,baker=order.baker,separator=order.separator,shift=order.shift,notes=order.notes,purchase_order=order.purchase_order.strip(),cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
     try:data=pdf.receipts([snapshot])
     except ValueError as exc:raise ValidationError(str(exc)) from exc
     # # failure rolls back all state and snapshots

@@ -53,3 +53,8 @@ A suite final tem **89 testes**, sem ignorados. Os oito testes adicionais desta 
 O usuário confirmou o objetivo de substituir Imagem/Multicomp por um ERP fiscal único, posteriormente. A emissão própria e sua homologação ainda são uma etapa futura. Cadastro atual: TECO / Sistema Imagem; NONA / Multicomp. Esses dados são informativos e não configuram conexões.
 
 **109 testes aprovados**, sem ignorados, incluindo 20 novos de importação, duplicidade, XML inseguro, totais/vencimentos, destinatário, pagamento parcial, permissões, telas e cadastro de empresa. Fluxo navegador com XML artificial: upload → conferência → geração de duas parcelas → pagamento parcial → consulta de saldo, também no celular. Nenhuma nota real nem pagamento bancário foi criado nos testes. A nova marca da NONA nas notinhas também passou nos nove testes de impressão executados nesta etapa.
+
+
+## Ordem de compra do cliente
+
+Campo de número/referência da OC no pedido e no fechamento por período. Preservado no snapshot da emissão, notinhas comuns/IBIS, romaneio, PDFs de fechamento e exportação CSV. OC comum do fechamento preenche somente referências ausentes nos pedidos; dados previamente emitidos são preservados. Exigência antes da emissão configurável por cliente. A suite passou para **118 testes**, com nove novos cenários de OC, emissão, congelamento, fechamento e exportação.

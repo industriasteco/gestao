@@ -69,7 +69,7 @@ def statement_export(request,pk):
     def cell(value):
         value=str(value or '')
         return "'"+value if value.lstrip().startswith(('=','+','-','@')) else value
-    writer.writerow(['Finalidade','Empresa','Cliente','CPF_CNPJ','Inicio','Fim','Pedido','Data','Produto','Unidade','Quantidade','Valor_unitario','Valor_total'])
+    writer.writerow(['Finalidade','Empresa','Cliente','CPF_CNPJ','Inicio','Fim','Pedido','Ordem_de_compra','Data','Produto','Unidade','Quantidade','Valor_unitario','Valor_total'])
     for item in row.snapshot['items']:
-        writer.writerow([cell(v) for v in ['HOMOLOGACAO - NAO EMITIR NOTA REAL' if row.snapshot['synthetic'] else 'Apoio ao preenchimento fiscal - validar dados tributarios',row.snapshot['company'],row.snapshot['legal_name'] or row.snapshot['client'],row.snapshot['client_tax_id'],row.start,row.end,item['number'] or item['order'],item['date'],item['product'],item['unit'],item['quantity'],item['price'],item['total']]])
+        writer.writerow([cell(v) for v in ['HOMOLOGACAO - NAO EMITIR NOTA REAL' if row.snapshot['synthetic'] else 'Apoio ao preenchimento fiscal - validar dados tributarios',row.snapshot['company'],row.snapshot['legal_name'] or row.snapshot['client'],row.snapshot['client_tax_id'],row.start,row.end,item['number'] or item['order'],item.get('purchase_order',''),item['date'],item['product'],item['unit'],item['quantity'],item['price'],item['total']]])
     return response

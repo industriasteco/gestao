@@ -37,6 +37,7 @@ class Client(Entity):
     tax_id = models.CharField(max_length=14, blank=True, validators=[RegexValidator(r'^(?:\d{11}|\d{14})$', 'Informe CPF com 11 ou CNPJ com 14 dígitos, ou deixe pendente.')])
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=40, blank=True)
+    requires_purchase_order = models.BooleanField(default=False)
     def __str__(self): return self.name
 
 class Product(Entity):
@@ -99,6 +100,7 @@ class Order(Entity):
     delivered_at = models.DateTimeField(null=True, blank=True)
     delivery_evidence = models.TextField(blank=True)
     commercial_number = models.CharField(max_length=40, blank=True)
+    purchase_order = models.CharField(max_length=50, blank=True)
     class Meta:
         permissions = [('check_production','Conferir produção'),('issue_document','Emitir documento de teste'),('confirm_delivery','Confirmar entrega de teste'),('close_month','Aprovar fechamento de teste'),('cancel_issued','Cancelar pedido emitido')]
         indexes = [models.Index(fields=['company','date','status'])]
@@ -351,6 +353,7 @@ class ClientStatement(Entity):
     start = models.DateField()
     end = models.DateField()
     total = models.DecimalField(max_digits=16, decimal_places=2)
+    purchase_order = models.CharField(max_length=50, blank=True)
     snapshot = models.JSONField(default=dict)
     document = models.OneToOneField(Document, on_delete=models.PROTECT)
     status = models.CharField(max_length=15, default='RASCUNHO', choices=[('RASCUNHO','Pronto para enviar'),('ENVIADO','Enviado / aguardando cliente'),('APROVADO','Aprovado pelo cliente'),('REJEITADO','Cliente pediu revisão'),('CANCELADO','Cancelado')])

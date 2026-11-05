@@ -65,7 +65,7 @@ def order_detail(request,pk):
             if action=='info':
                 form=ProductionInfoForm(request.POST,instance=order)
                 if form.is_valid():
-                    workflow.update_info(request.user,order.pk,{key:form.cleaned_data[key] for key in ['shift','baker','separator','driver','notes']},form.cleaned_data['reason'])
+                    workflow.update_info(request.user,order.pk,{key:form.cleaned_data[key] for key in ['purchase_order','shift','baker','separator','driver','notes']},form.cleaned_data['reason'])
                 else:return render(request,'core/order.html',dict(order=order,form=form,documents=Document.objects.filter(order=order)))
             elif action=='issue':
                 if request.POST.get('confirm')!='yes':raise ValidationError('Marque a confirmação da prévia antes de emitir.')

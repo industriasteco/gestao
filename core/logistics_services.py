@@ -56,7 +56,7 @@ def build_manifest(user, route, day):
             snapshot.append({'product':item.product_name,'quantity':str(item.quantity),'unit':item.unit,'price':str(amount) if amount is not None else None})
         if not snapshot:raise ValidationError('Há um pedido sem itens positivos; revise antes de gerar o romaneio.')
         ManifestLine.objects.create(manifest=manifest,order=order,sequence=stop.sequence,client_name=order.client.name,address=order.client.address,
-            instructions='\n'.join(x for x in [stop.instructions,order.notes] if x),items_snapshot=snapshot,amount_due=total if complete else None)
+            instructions='\n'.join(x for x in [stop.instructions,'OC DO CLIENTE: '+order.issued_snapshot.get('purchase_order','') if order.issued_snapshot.get('purchase_order') else '',order.notes] if x),items_snapshot=snapshot,amount_due=total if complete else None)
     event(user,manifest,'GERAR_ROMANEIO',after={'date':str(day),'route':str(route.pk),'orders':len(orders),'driver':manifest.driver_name})
     return manifest
 

@@ -23,6 +23,7 @@ def finalize_day(user,day):
         from .receipt_layout import brand_code
         if brand_code(order.company.code) not in ('TECO','NONA'):raise ValidationError('Configure o código da emissora como TECO ou NONA antes de finalizar as notinhas deste modelo.')
         if not order.company.cnpj:raise ValidationError(f'Cadastre o CNPJ confirmado da empresa {order.company.name} antes de finalizar, conforme o modelo de automação.')
+        if order.client.requires_purchase_order and not order.purchase_order.strip():raise ValidationError(f'Informe a ordem de compra exigida pelo cliente {order.client.name} antes de finalizar.')
         if not order.baker.strip() or not order.shift:raise ValidationError('Informe o padeiro de cada turno antes de finalizar.')
     for order in orders:
         issue(user,order.pk)

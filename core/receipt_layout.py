@@ -77,7 +77,9 @@ def common_receipt(c,s,items,part,parts,x,top,width,height,customer):
     text(c,'Tel.: '+s.get('company_phone',''),x+4,top-65,width-8,6.3,align='center')
     text(c,s.get('company_email',''),x+4,top-76,width-8,6.3,align='center')
     via='VIA CLIENTE - COM VALORES' if customer else 'VIA EMPRESA - SEM VALORES'
-    text(c,'Pedido nº '+s['number']+'  '+via,x+4,top-91,width-8,6.4,True)
+    purchase_order=s.get('purchase_order','')
+    if purchase_order:text(c,'OC DO CLIENTE: '+purchase_order,x+4,top-84,width-8,6.4,True)
+    text(c,'Pedido nº '+s['number']+'  '+via,x+4,top-(96 if purchase_order else 91),width-8,6.4,True)
     text(c,'CLIENTE: '+s['client_name'],x+4,top-106,width-8,8,True,max_lines=2)
     from datetime import date
     when=date.fromisoformat(s['date']).strftime('%d/%m/%Y')

@@ -30,6 +30,8 @@ def header(c,s,x,y,width,customer):
     c.setFont('Helvetica',6)
     c.drawString(x,y-39*mm,('Padeiro: '+s.get('baker','')+' | Separacao: '+s.get('separator',''))[:140])
     c.drawString(x,y-43*mm,s.get('client_address','')[:160])
+    if s.get('purchase_order'):
+        c.setFont('Helvetica-Bold',7);c.drawString(x,y-48*mm,'OC DO CLIENTE: '+s['purchase_order'])
 
 def receipts(snapshots):
     buffer=BytesIO();c=canvas.Canvas(buffer,pagesize=A4,pageCompression=0,invariant=1)
@@ -75,12 +77,12 @@ def monthly(company,client,month,orders,total):
     stream=BytesIO();styles=getSampleStyleSheet()
     flow=[Paragraph('HOMOLOGAÇÃO — NÃO COBRAR — DOCUMENTO NÃO FISCAL',styles['Heading2']),
           Paragraph(escape(f'{company.name} / {client.name} / {month:%m/%Y}'),styles['Heading3']),Spacer(1,12)]
-    data=[['Pedido','Data / entrega','Produto','Qtd','Unitário','Subtotal']]
+    data=[['Pedido','Data / entrega','Ordem de compra','Produto','Qtd','Unitário','Subtotal']]
     for order in orders:
         s=order.issued_snapshot
         for item in s['items']:
-            data.append([s['number'],s['date']+' '+s['time'],Paragraph(escape(item['name']),styles['Normal']),item['quantity'],item['price'],item['total']])
-    table=Table(data,repeatRows=1,colWidths=[85,100,145,55,60,65])
+            data.append([s['number'],s['date']+' '+s['time'],Paragraph(escape(s.get('purchase_order','')),styles['Normal']),Paragraph(escape(item['name']),styles['Normal']),item['quantity'],item['price'],item['total']])
+    table=Table(data,repeatRows=1,colWidths=[80,80,90,90,50,60,60])
     table.setStyle(TableStyle([('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),8),('BOTTOMPADDING',(0,0),(-1,-1),9),('GRID',(0,0),(-1,-1),.2,colors.lightgrey)]))
     flow.extend([table,Spacer(1,16),Paragraph('TOTAL R$ '+str(total),styles['Heading2'])])
     SimpleDocTemplate(stream,pagesize=A4,rightMargin=30,leftMargin=30,topMargin=30,bottomMargin=30).build(flow)
