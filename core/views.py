@@ -21,7 +21,7 @@ def daily(request):
             elif request.POST.get('action')=='check': check_production(request.user,day);messages.success(request,'Produção conferida. Nenhuma entrega ou emissão confirmada.')
         except (InvalidOperation,KeyError,Order.DoesNotExist,OrderItem.DoesNotExist): messages.error(request,'Dados inválidos')
         except ValidationError as e: messages.error(request,'; '.join(e.messages))
-        return redirect(f'/?date={day}')
+        return redirect(f'/pedidos-dia/?date={day}')
     orders=Order.objects.filter(company__in=companies(request.user),date=day).select_related('company','client').prefetch_related('items')
     return render(request,'core/daily.html',dict(day=day.isoformat(),orders=orders,production=production(orders),companies=companies(request.user)))
 

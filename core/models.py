@@ -61,6 +61,8 @@ class Recurrence(Entity):
     valid_until = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
+    notes = models.TextField(blank=True)
+    source_key = models.CharField(max_length=250, null=True, blank=True, unique=True)
     class Meta:
         permissions = [('activate_recurrence','Ativar recorrência'),('prepare_day','Preparar dia'),('review_staging','Revisar staging')]
         constraints = [models.CheckConstraint(condition=Q(quantity__gte=0),name='recurrence_quantity')]
@@ -175,3 +177,55 @@ class Reconciliation(Entity):
     reason = models.TextField()
     actor = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Receivable(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    client = models.ForeignKey(Client, on_delete=models.PROTECT)
+    reference = models.CharField(max_length=120)
+    issued_on = models.DateField()
+    due_on = models.DateField(db_index=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    notes = models.TextField(blank=True)
+    voided = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name='receivable_positive'),
+            models.CheckConstraint(condition=Q(due_on__gte=F('issued_on')), name='receivable_dates'),
+            models.UniqueConstraint(fields=['company', 'reference'], name='receivable_reference'),
+        ]
+
+
+class Payment(Entity):
+    receivable = models.ForeignKey(Receivable, on_delete=models.PROTECT, related_name='payments')
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    date = models.DateField()
+    reference = models.CharField(max_length=120)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name='payment_positive'),
+            models.UniqueConstraint(fields=['receivable', 'reference'], name='payment_reference'),
+        ]
+
+
+class StockItem(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    name = models.CharField(max_length=200)
+    unit = models.CharField(max_length=20, default='KG')
+    minimum = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['company', 'name'], name='stock_name'),
+                       models.CheckConstraint(condition=Q(minimum__gte=0), name='stock_minimum')]
+
+
+class StockMovement(Entity):
+    item = models.ForeignKey(StockItem, on_delete=models.PROTECT, related_name='movements')
+    quantity = models.DecimalField(max_digits=15, decimal_places=3)
+    date = models.DateField()
+    reason = models.CharField(max_length=250)
+    key = models.UUIDField(unique=True, default=uuid.uuid4)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=~Q(quantity=0), name='stock_nonzero')]

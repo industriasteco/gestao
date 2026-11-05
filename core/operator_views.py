@@ -32,11 +32,26 @@ def records(request,kind):
         if form.is_valid():
             with transaction.atomic():
                 obj=form.save()
+                if kind=='produtos' and form.cleaned_data.get('amount') is not None:
+                    from .management_services import set_price
+                    set_price(request.user,obj.company,obj,form.cleaned_data['amount'],form.cleaned_data['valid_from'])
                 workflow.event(request.user,obj,'CADASTRAR',after={k:str(v) for k,v in form.cleaned_data.items()})
             messages.success(request,'Cadastro salvo. Nenhum documento ou cobrança criado.')
             return redirect('records',kind=kind)
     else:form=form_type(user=request.user)
     rows=companies(request.user) if model is Company else model.objects.filter(company__in=companies(request.user))
+    if kind=='produtos':
+        from django.utils import timezone
+        from django.db.models import Q
+        today=timezone.localdate()
+        for row in rows:
+            current=Price.objects.filter(product=row,client__isnull=True,valid_from__lte=today).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=today))
+            row.current_price=current.first().amount if current.count()==1 else None
+    if kind=='clientes':
+        from .management_services import balances
+        overdue={r.client_id for r in balances(request.user) if r.days_late}
+        known={r.client_id for r in balances(request.user)}
+        for row in rows:row.financial_status='Inadimplente' if row.pk in overdue else ('Adimplente' if row.pk in known else 'Sem histórico financeiro')
     return render(request,'core/records.html',dict(kind=kind,rows=rows,form=form,options=options))
 
 @login_required

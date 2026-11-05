@@ -24,22 +24,37 @@ def activate(user, rule, reason):
 @transaction.atomic
 def prepare(user, day):
     rules=Recurrence.objects.select_for_update().filter(active=True,company__in=companies(user),valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day)).select_related('company','client','product')
-    count=0
+    groups=defaultdict(list)
     for rule in rules:
         authorize(user,rule.company,'core.prepare_day')
-        if day.isoweekday() not in rule.weekdays: continue
+        if day.isoweekday() not in rule.weekdays:continue
         exception=RuleException.objects.filter(rule=rule,date=day).first()
         if exception and exception.suspended:continue
-        if rule.client.company_id != rule.company_id or rule.product.company_id != rule.company_id: raise ValidationError('Empresa incompatível')
-        key=f'{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.pk}:{rule.version}'
-        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,date=day,slot=rule.slot,time=rule.time,shift=rule.shift))
-        if created:
-            OrderItem.objects.create(order=order,product=rule.product,product_name=rule.product.name,unit=rule.product.unit,quantity=exception.quantity if exception and exception.quantity is not None else rule.quantity)
+        if not rule.client.active or not rule.product.active or not rule.company.active:continue
+        if rule.client.company_id!=rule.company_id or rule.product.company_id!=rule.company_id:raise ValidationError('Empresa incompatível')
+        if rule.source_key:
+            key=f'planned:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}'
+        else:
+            key=f'{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.pk}:{rule.version}'
+        groups[key].append((rule,exception))
+    count=0
+    for key,group in groups.items():
+        rule=group[0][0]
+        if any(r.time!=rule.time or r.shift!=rule.shift for r,_ in group):
+            raise ValidationError('Itens da mesma entrega precisam do mesmo horário e turno. Para outra entrega, use uma identificação diferente.')
+        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,date=day,slot=rule.slot,time=rule.time,shift=rule.shift,notes='\n'.join(dict.fromkeys(r.notes for r,_ in group if r.notes))))
+        if not created:continue
+        lines={}
+        for rule,exception in group:
+            qty=exception.quantity if exception and exception.quantity is not None else rule.quantity
+            lines[rule.product_id]=(rule.product,lines.get(rule.product_id,(None,Decimal(0)))[1]+qty)
             for extra in rule.extra_items.select_related('product').all():
                 if extra.product.company_id!=rule.company_id:raise ValidationError('Produto extra de outra empresa')
-                OrderItem.objects.create(order=order,product=extra.product,product_name=extra.product.name,unit=extra.product.unit,quantity=extra.quantity)
-            Audit.objects.create(actor=user,entity=str(order.pk),action='PRE_LANCAR',after={'date':str(day),'source':'RECORRENCIA'})
-            count+=1
+                lines[extra.product_id]=(extra.product,lines.get(extra.product_id,(None,Decimal(0)))[1]+extra.quantity)
+        for product,qty in lines.values():
+            OrderItem.objects.create(order=order,product=product,product_name=product.name,unit=product.unit,quantity=qty)
+        Audit.objects.create(actor=user,entity=str(order.pk),action='PRE_LANCAR',after={'date':str(day),'source':'RECORRENCIA'})
+        count+=1
     return count
 
 def production(orders):

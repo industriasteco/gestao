@@ -40,7 +40,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-42 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+57 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -49,3 +49,26 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 [Etapa 1](docs/ETAPA_1.md), [Etapa 2 e pendências](docs/ETAPA_2.md). Ainda pendentes: operação real homologada, MFA, backup durável criptografado/agendado, produção assada/perdas, devoluções parciais, correções pós-fechamento, compartilhamento de clientes com vigências, integração fiscal e teste físico da impressora.
 
 Este repositório é público. As fontes privadas (`reference/`, planilhas, CSVs originais e arquivos de credenciais) ficam fora do versionamento. Nesta tarefa estão no ZIP anexado e em `/workspace/erp-reference`; na hospedagem, carregue CSVs pela área protegida do ERP. Macros VBA não são executadas.
+
+
+## Evolução gerencial — novembro de 2026
+
+Página inicial com painel, filtros por período/empresa, faturamento e rankings de vendas reais emitidas, vencimentos em atraso e alerta de estoque. Pedidos de teste não entram no faturamento. O fluxo de emissão continua em homologação: os indicadores de vendas reais começarão a ser alimentados quando esse fluxo for liberado.
+
+Produtos permitem cadastrar o preço padrão diretamente no formulário. A ficha do cliente reúne observações, condições negociadas por produto, vigências, rotinas, pedidos novos e contas. Novos preços encerram a vigência anterior e preservam documentos emitidos. Contas a receber e recebimentos parciais têm registro manual confirmado e auditoria; não há envio automático de cobrança, conciliação bancária ou criação de dívida pela planilha.
+
+Estoque: cadastro de insumos/produtos, mínimo, entradas e saídas justificadas. Não permite saldo negativo, inclusive por retroatividade. Consumo, perdas e saldo inicial são movimentos manuais; não há baixa por ficha técnica automática.
+
+Em **Rotinas de compra → Analisar planilha**, selecione a empresa, o arquivo XLSM/XLSX e o início das novas rotinas. O importador lê apenas abas `D-outubro-AA_MD`; não executa VBA. Cadastra clientes/produtos e rotinas estáveis por dia da semana, preservando observações. **Nunca importa pedidos antigos, preços presumidos ou contas a receber.** Duas vias contam uma vez; divergências, descrições compostas e padrões variáveis são sinalizados. Critério: moda positiva em pelo menos 60% das datas disponíveis daquele dia, mínimo duas ocorrências, sem empate. Datas sem aba não são tratadas como ausência. Reenvio do mesmo arquivo não duplica cadastros. Rotinas já ativas exigem comparação manual antes de substituir.
+
+As abas MD são tratadas como turno noturno; o horário fica pendente (`00:00`) e deve ser conferido na ficha da rotina antes do uso. Quantidades alteradas numa rotina não sobrescrevem pedidos já preparados. Produtos da mesma entrega importada são agrupados num pedido novo por cliente/data/identificação; entregas com horários diferentes precisam de identificações diferentes.
+
+O relatório privado por cliente pode ser gerado sem cadastrar nada:
+
+```sh
+.venv/bin/python scripts/analyze_routines.py /caminho/planilha.xlsm --output /caminho/privado
+```
+
+Ele gera HTML pesquisável e XLSX sem macros. Grave os relatórios fora do repositório público. A planilha original e dados de clientes nunca devem ser commitados. A migração `0005` adiciona estruturas sem apagar dados existentes. A atualização não limpa pedidos ou exemplos que já estiverem na hospedagem.
+
+Para detalhes de publicação e verificação: [Evolução gerencial](docs/ETAPA_3.md).
