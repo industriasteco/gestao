@@ -14,8 +14,8 @@ from django.conf import settings
 WIDTH,HEIGHT=A4
 
 def logo(code):
-    from .receipt_layout import brand_code
-    return settings.BASE_DIR/'core/assets'/({'TECO':'teco.png','NONA':'nona.png'}.get(brand_code(code),'SEM_MARCA_APROVADA'))
+    from .receipt_layout import receipt_logo
+    return receipt_logo(code)
 
 def header(c,s,x,y,width,customer):
     path=logo(s['company_code'])

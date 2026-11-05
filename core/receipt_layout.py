@@ -18,6 +18,12 @@ def brand_code(value):
     return code
 
 
+def receipt_logo(code):
+    if brand_code(code)=='NONA':
+        return settings.BASE_DIR/'core/static/core/brand/teco-nona-branco-verde.png'
+    return settings.BASE_DIR/'core/assets'/({'TECO':'teco.png'}.get(brand_code(code),'SEM_MARCA_APROVADA'))
+
+
 def number(value,places=2):
     return f'{Decimal(str(value)):,.{places}f}'.replace(',','X').replace('.',',').replace('X','.')
 
@@ -59,13 +65,15 @@ def common_receipt(c,s,items,part,parts,x,top,width,height,customer):
     c.rect(x,top-height,width,height)
     c.setFillColor(colors.HexColor('#f7f9fb'));c.rect(x,top-24,width,24,stroke=0,fill=1)
     c.setFillColor(colors.HexColor('#173451'))
-    logo=settings.BASE_DIR/'core/assets'/({'TECO':'teco.png','NONA':'nona.png'}.get(brand_code(s['company_code']),'not-found'))
-    if logo.exists():c.drawImage(ImageReader(str(logo)),x+4,top-44,width=42,height=42,preserveAspectRatio=True,mask='auto')
-    text(c,s['company_name'],x+48,top-14,width-52,9,True,'center',2)
+    logo=receipt_logo(s['company_code'])
+    nona=brand_code(s['company_code'])=='NONA'
+    logo_width,logo_height=(60,45) if nona else (42,42)
+    if logo.exists():c.drawImage(ImageReader(str(logo)),x+4,top-2-logo_height,width=logo_width,height=logo_height,preserveAspectRatio=True,mask='auto')
+    text(c,s['company_name'],x+logo_width+6,top-14,width-logo_width-10,9,True,'center',2)
     c.setFillColor(colors.black)
-    text(c,('Razão social: '+s['legal_name']) if s.get('legal_name') else 'CNPJ: '+(s.get('cnpj') or 'PENDENTE'),x+46,top-34,width-50,6.4,align='center',max_lines=2)
+    text(c,('Razão social: '+s['legal_name']) if s.get('legal_name') else 'CNPJ: '+(s.get('cnpj') or 'PENDENTE'),x+logo_width+4,top-34,width-logo_width-8,6.4,align='center',max_lines=2)
     meta=('CNPJ: '+(s.get('cnpj') or 'PENDENTE')+' | ') if s.get('legal_name') else ''
-    text(c,meta+s.get('company_address',''),x+4,top-49,width-8,6.3,align='center',max_lines=2)
+    text(c,meta+s.get('company_address',''),x+4,top-(54 if nona else 49),width-8,6.3,align='center',max_lines=2)
     text(c,'Tel.: '+s.get('company_phone',''),x+4,top-65,width-8,6.3,align='center')
     text(c,s.get('company_email',''),x+4,top-76,width-8,6.3,align='center')
     via='VIA CLIENTE - COM VALORES' if customer else 'VIA EMPRESA - SEM VALORES'

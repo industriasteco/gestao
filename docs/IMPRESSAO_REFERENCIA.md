@@ -17,7 +17,9 @@ Cadastros → pré-carregar fixos → ajustar quantidades → conferir turnos �
 
 Duas vias lado a lado por pedido; dois pedidos/quatro vias por A4 retrato. Dez itens por parte. Colunas com as proporções do VBA: quantidade 20%, descrição 50%, preço 20%, valor 10%. Nome/logotipo e dados da emissora; cliente, data, entrega, endereço; quantidade e total da folha; padeiro, separação e visto do recebedor. Via empresa sem preços e sem totais financeiros, via cliente com valores. Pedidos maiores são paginados por parte, sem perda de itens.
 
-Os logotipos foram preservados a partir do arquivo fornecido, inclusive sua transparência. O renderizador PDF usa fontes padrão, pois Aptos/Arial do Excel não estão embutidas no arquivo. Isso exige conferir a amostra e uma impressão física; a leitura do VBA não comprova equivalência de pixels com um PDF emitido pelo Excel ou comportamento da impressora.
+O logotipo TECO foi preservado a partir do arquivo fornecido, inclusive sua transparência. A pedido do usuário, as novas notinhas da NONA usam a marca conjunta em branco e verde aplicada no painel, com espaço ampliado no cabeçalho. A seleção continua pelo código da emissora (NONA / NONA CECÍLIA); razão social, CNPJ e demais dados pertencem à NONA. Isso também vale para o cabeçalho IBIS quando a emissora for NONA. PDFs já armazenados não são sobrescritos.
+
+O renderizador PDF usa fontes padrão, pois Aptos/Arial do Excel não estão embutidas no arquivo. Isso exige conferir a amostra e uma impressão física; a leitura do VBA não comprova equivalência de pixels com um PDF emitido pelo Excel ou comportamento da impressora.
 
 ## IBIS: decisão explícita do usuário
 
