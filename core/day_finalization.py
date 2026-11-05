@@ -6,19 +6,20 @@ from .models import Company,Order,OrderItem,Document
 from .services import companies,authorize,production,require
 from .workflow import issue,event
 from . import pdf
+from .operations import production_companies,production_orders,require_operational
 
 
 @transaction.atomic
 def finalize_day(user,day):
     require(user,'core.issue_document')
-    scope=list(companies(user).order_by('pk'))
+    scope=list(production_companies(user).order_by('pk'))
     for company in scope:Company.objects.select_for_update().get(pk=company.pk)
     positive=OrderItem.objects.filter(quantity__gt=0).values('order_id')
-    orders=list(Order.objects.select_for_update().filter(company__in=scope,date=day,pk__in=positive).exclude(status='CANCELADO').select_related('company','client').order_by('client__name','time','slot','pk'))
+    orders=list(production_orders(user).select_for_update().filter(date=day,pk__in=positive).exclude(status='CANCELADO').select_related('company','client').order_by('client__name','time','slot','pk'))
     if not orders:raise ValidationError('Não há itens positivos para finalizar nesta data.')
     for order in orders:
         authorize(user,order.company,'core.issue_document')
-        if not order.synthetic:raise ValidationError('Operação real depende da liberação da homologação.')
+        if not order.synthetic:require_operational(order.company)
         if order.status=='PRE_LANCADO':raise ValidationError('Confira os turnos e execute Conferir produção antes de finalizar o dia.')
         from .receipt_layout import brand_code
         if brand_code(order.company.code) not in ('TECO','NONA'):raise ValidationError('Configure o código da emissora como TECO ou NONA antes de finalizar as notinhas deste modelo.')
@@ -60,7 +61,7 @@ def planned_pdf(day,orders):
         if index:flow.append(PageBreak())
         flow.extend([Paragraph('RESUMO GERAL - PRODUÇÃO' if shift=='GERAL' else 'LISTA DE PRODUÇÃO - '+shift,styles['Title']),
             Paragraph('Data: '+day.strftime('%d/%m/%Y'),styles['Normal']),
-            Paragraph('PLANEJAMENTO - HOMOLOGAÇÃO - NÃO COMPROVA PRODUÇÃO REALIZADA',styles['Normal'])])
+            Paragraph('PLANEJAMENTO - HOMOLOGAÇÃO - NÃO COMPROVA PRODUÇÃO REALIZADA' if any(order.synthetic for order in orders) else 'PLANEJAMENTO - CONFERIR PRODUÇÃO REALIZADA AO FINAL DO TURNO',styles['Normal'])])
         for period in ('NOTURNO','DIURNO'):
             names=', '.join(sorted({order.baker for order in orders if order.shift==period}))
             flow.append(Paragraph(escape('Padeiro '+period.lower()+': '+names),styles['Normal']))
@@ -79,7 +80,7 @@ def planned_pdf(day,orders):
 @transaction.atomic
 def assign_shift_responsibles(user,day,night,daytime,separator):
     require(user,'core.prepare_day')
-    rows=list(Order.objects.select_for_update().filter(company__in=companies(user),date=day,status__in=['PRE_LANCADO','CONFERIDO'],pk__in=OrderItem.objects.filter(quantity__gt=0).values('order_id')))
+    rows=list(production_orders(user).select_for_update().filter(date=day,status__in=['PRE_LANCADO','CONFERIDO'],pk__in=OrderItem.objects.filter(quantity__gt=0).values('order_id')))
     names={'NOTURNO':night.strip(),'DIURNO':daytime.strip()}
     for order in rows:
         if not names.get(order.shift):raise ValidationError('Informe o turno e o padeiro de cada turno que possui pedidos.')

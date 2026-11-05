@@ -3,8 +3,8 @@
 {% block extra_head %}<link rel="stylesheet" href="{% static 'core/order/entry.css' %}"><script src="{% static 'core/client/prices.js' %}" defer></script><script src="{% static 'core/order/entry.js' %}" defer></script>{% endblock %}
 {% block content %}
 <p class="eyebrow">PEDIDOS E PRODUÇÃO</p>
-<h1>Novo pedido de teste</h1>
-<p>Este pedido é artificial e não gera cobrança real. Use apenas cadastros confirmados ou identificados como teste.</p>
+<h1>{% if operational_mode %}Novo pedido{% else %}Novo pedido de teste{% endif %}</h1>
+<p>{% if operational_mode %}Informe a data da entrega, o cliente, os produtos e as quantidades. A notinha de entrega é um documento não fiscal.{% else %}Este pedido é artificial e não gera cobrança real. Use apenas cadastros confirmados ou identificados como teste.{% endif %}</p>
 <p id="quick-record-status" class="notice" role="status" hidden></p>
 <form method="post" id="order-entry-form">
   {% csrf_token %}
@@ -32,7 +32,7 @@
     <template id="empty-order-item">{% include 'core/order_item_fields.html' with item=items.empty_form %}</template>
     <button type="button" class="secondary" id="add-order-item">＋ Adicionar item</button>
   </section>
-  <button>Salvar pedido de teste</button>
+  <button>{% if operational_mode %}Salvar pedido{% else %}Salvar pedido de teste{% endif %}</button>
 </form>
 {{ client_schedules|json_script:'client-schedules-data' }}
 {% if user.is_superuser %}

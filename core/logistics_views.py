@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Sum,Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,6 +13,7 @@ from .models import *
 from .forms import (ProductionRecordForm, DriverForm, DeliveryRouteForm, RouteStopForm,
                     ManifestForm, ManifestLineForm, CashBagForm)
 from .services import companies, production
+from .operations import production_orders
 from .management_views import admin_only
 from .workflow import event
 from .logistics_services import register_production, build_manifest, report_delivery, check_cash_bag
@@ -20,10 +21,10 @@ from .logistics_services import register_production, build_manifest, report_deli
 
 @login_required
 def production_actual(request):
-    form=ProductionRecordForm(request.POST or None,user=request.user,initial={'date':timezone.localdate(),'batch':str(uuid.uuid4())[:8],'losses':0})
     try:day=date.fromisoformat(request.GET.get('date',str(timezone.localdate())))
     except ValueError:
         messages.error(request,'Selecione uma data válida.');return redirect('production_actual')
+    form=ProductionRecordForm(request.POST or None,user=request.user,initial={'date':timezone.localdate(),'planned_for':day,'batch':str(uuid.uuid4())[:8],'losses':0})
     if request.method=='POST':
         if not request.user.has_perm('core.add_productionrecord'):
             from django.core.exceptions import PermissionDenied
@@ -32,18 +33,19 @@ def production_actual(request):
             try:
                 record=register_production(request.user,form.save(commit=False))
                 messages.success(request,'Produção realizada registrada. Quantidade útil e perdas atualizadas; nenhum pedido criado.')
-                return redirect(f'/producao/realizada/?date={record.date}')
+                return redirect(f'/producao/realizada/?date={record.planned_for}')
             except ValidationError as exc:form.add_error(None,exc)
-    rows=ProductionRecord.objects.filter(company__in=companies(request.user),date=day).select_related('company','product','actor').order_by('shift','product__name','created_at')
+    rows=ProductionRecord.objects.filter(company__in=companies(request.user)).filter(Q(planned_for=day)|Q(planned_for__isnull=True,date=day)).select_related('company','product','actor').order_by('shift','product__name','created_at')
     totals={}
     for record in rows:
         record.good=record.quantity-record.losses
         group=totals.setdefault(record.unit,{'quantity':Decimal(0),'losses':Decimal(0),'good':Decimal(0)})
         group['quantity']+=record.quantity;group['losses']+=record.losses;group['good']+=record.good
         record.total_cost=record.quantity*record.cost_snapshot if record.cost_snapshot is not None else None
-    planned=production(Order.objects.filter(company__in=companies(request.user),date=day))
+    day_orders=production_orders(request.user).filter(date=day)
+    planned=production(day_orders)
     comparison={}
-    for item in OrderItem.objects.filter(order__company__in=companies(request.user),order__date=day).exclude(order__status='CANCELADO').select_related('order__company','product'):
+    for item in OrderItem.objects.filter(order__in=day_orders).exclude(order__status='CANCELADO').select_related('order__company','product'):
         key=(item.order.company_id,item.product_id,item.unit)
         group=comparison.setdefault(key,dict(company=item.order.company.code,product=item.product_name,unit=item.unit,planned=Decimal(0),produced=Decimal(0),losses=Decimal(0)))
         group['planned']+=item.quantity

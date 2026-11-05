@@ -19,6 +19,8 @@ class Company(Entity):
     fiscal_system = models.CharField(max_length=100, blank=True)
     cnpj = models.CharField(max_length=14, null=True, blank=True, unique=True, validators=[RegexValidator(r'^\d{14}$')])
     active = models.BooleanField(default=True)
+    operational_enabled = models.BooleanField(default=False)
+    routines_reset_at = models.DateTimeField(null=True, blank=True)
     def __str__(self): return self.name
 
 class Membership(models.Model):
@@ -75,6 +77,7 @@ class Recurrence(Entity):
     valid_until = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=False)
     auto_prepare = models.BooleanField(default=False)
+    archived = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)
     source_key = models.CharField(max_length=250, null=True, blank=True, unique=True)
@@ -87,6 +90,7 @@ class Order(Entity):
     client = models.ForeignKey(Client, on_delete=models.PROTECT)
     recurrence = models.ForeignKey(Recurrence, on_delete=models.PROTECT, null=True, blank=True)
     date = models.DateField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     slot = models.CharField(max_length=60)
     time = models.TimeField()
     shift = models.CharField(max_length=10,blank=True,choices=[('NOTURNO','Noturno'),('DIURNO','Diurno')])
@@ -254,6 +258,7 @@ class ProductionRecord(Entity):
     company = models.ForeignKey(Company, on_delete=models.PROTECT)
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     date = models.DateField(db_index=True)
+    planned_for = models.DateField(null=True, blank=True, db_index=True)
     shift = models.CharField(max_length=10, choices=[('NOTURNO','Noturno'),('DIURNO','Diurno')])
     batch = models.CharField(max_length=80)
     quantity = models.DecimalField(max_digits=15, decimal_places=3)

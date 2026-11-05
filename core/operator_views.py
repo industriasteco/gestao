@@ -54,6 +54,7 @@ def records(request,kind):
             except ValidationError as exc:form.add_error(None,exc)
     else:form=form_type(user=request.user)
     rows=companies(request.user) if model is Company else model.objects.filter(company__in=companies(request.user))
+    if kind=='recorrencias':rows=rows.filter(archived=False)
     today=timezone.localdate()
     price_history=None
     if kind=='precos':
@@ -90,7 +91,7 @@ def order_detail(request,pk):
             elif action=='deliver':workflow.deliver(request.user,order.pk,request.POST.get('evidence',''))
             elif action=='release':workflow.release(request.user,order.pk)
             elif action=='cancel':workflow.cancel(request.user,order.pk,request.POST.get('reason',''))
-            messages.success(request,'Operação de teste registrada com auditoria.')
+            messages.success(request,'Operação registrada com auditoria.')
         except ValidationError as e:messages.error(request,'; '.join(e.messages))
         return redirect('order',pk=pk)
     price_preview=[]
@@ -98,7 +99,7 @@ def order_detail(request,pk):
         try:price=workflow.price_for(order.company,order.client,item.product,order.date)
         except ValidationError:price='PENDENTE DE CONFERÊNCIA'
         price_preview.append((item,price))
-    return render(request,'core/order.html',dict(order=order,form=form,documents=Document.objects.filter(order=order),price_preview=price_preview))
+    return render(request,'core/order.html',dict(order=order,form=form,documents=Document.objects.filter(order=order),price_preview=price_preview,can_confirm_delivery=order.synthetic or order.date<=timezone.localdate()))
 
 @login_required
 def document(request,pk):
@@ -108,7 +109,7 @@ def document(request,pk):
     if not (request.user.has_perm('core.issue_document') or request.user.has_perm('core.close_month')):raise PermissionDenied
     if doc.superseded:return render(request,'core/doc_cancelled.html',{'doc':doc},status=409)
     if hashlib.sha256(bytes(doc.data)).hexdigest()!=doc.sha256:return HttpResponse('Integridade do documento divergente. Contate o responsável.',status=409)
-    response=FileResponse(BytesIO(bytes(doc.data)),content_type='application/pdf',filename='HOMOLOGACAO_NAO_COBRAR.pdf')
+    response=FileResponse(BytesIO(bytes(doc.data)),content_type='application/pdf',filename=f'documento-{doc.kind.lower()}-{str(doc.pk)[:8]}.pdf')
     response['Cache-Control']='private, no-store';return response
 
 @login_required
@@ -146,7 +147,9 @@ def new_order(request):
     import uuid
     from django.forms import formset_factory
     from django.utils import timezone
-    form=ManualOrderForm(request.POST or None,user=request.user,initial={'date':timezone.localdate(),'key':uuid.uuid4(),'slot':'1ª entrega'})
+    try:initial_day=date.fromisoformat(request.GET.get('date',str(timezone.localdate())))
+    except ValueError:initial_day=timezone.localdate()
+    form=ManualOrderForm(request.POST or None,user=request.user,initial={'date':initial_day,'key':uuid.uuid4(),'slot':'1ª entrega'})
     ItemSet=formset_factory(ManualItemForm,extra=4,max_num=100,validate_max=True)
     items=ItemSet(request.POST or None,form_kwargs={'user':request.user})
     if request.method=='POST' and form.is_valid() and items.is_valid():
@@ -166,17 +169,17 @@ def new_order(request):
                 key='manual:'+str(form.cleaned_data['key'])
                 order=Order.objects.filter(idempotency_key=key).first()
                 if order is None:
-                    order=form.save(commit=False);order.idempotency_key=key;order.synthetic=True;order.save()
+                    order=form.save(commit=False);order.idempotency_key=key;order.synthetic=not company.operational_enabled;order.save()
                     for line in lines:
                         p=line['product'];OrderItem.objects.create(order=order,product=p,product_name=p.name,unit=p.unit,quantity=line['quantity'])
                         if p.pk in prices:set_current_price(request.user,company,p,prices.pop(p.pk),order.client)
                     if form.cleaned_data.get('repeat_weekly'):
                         save_recurring_items(request.user,order.client,[line for line in lines if line['quantity']>0],order.slot,order.time,order.shift,order.notes,origin=order,replace=True)
-                    workflow.event(request.user,order,'PEDIDO_MANUAL_TESTE',after={'items':len(lines)})
+                    workflow.event(request.user,order,'PEDIDO_MANUAL_TESTE' if order.synthetic else 'PEDIDO_MANUAL',after={'items':len(lines)})
                 elif order.company_id!=company.pk:raise ValidationError('Chave já usada para outra empresa.')
             return redirect('order',pk=order.pk)
         except ValidationError as e:form.add_error(None,e)
-    configured=set(Recurrence.objects.filter(company__in=companies(request.user),auto_prepare=True).values_list('client_id',flat=True))
+    configured=set(Recurrence.objects.filter(company__in=companies(request.user),auto_prepare=True,archived=False).values_list('client_id',flat=True))
     schedules={str(client.pk):{'weekdays':client.recurring_weekdays,'configured':client.pk in configured} for client in Client.objects.filter(company__in=companies(request.user))}
     return render(request,'core/new_order.html',{'form':form,'items':items,'client_schedules':schedules,
         'quick_client_prices':client_price_forms(request.user,prefix='quick_client_prices'),
@@ -232,7 +235,7 @@ def quick_record(request,kind):
                 created=True
     except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
     record={'id':str(obj.pk),'name':obj.name,'company':str(obj.company_id)}
-    if kind=='clientes':record.update(weekdays=obj.recurring_weekdays,configured=Recurrence.objects.filter(client=obj,auto_prepare=True).exists())
+    if kind=='clientes':record.update(weekdays=obj.recurring_weekdays,configured=Recurrence.objects.filter(client=obj,auto_prepare=True,archived=False).exists())
     return JsonResponse({'record':record,'created':created},status=201 if created else 200)
 
 @login_required
@@ -243,6 +246,8 @@ def start_demo(request):
     from django.utils import timezone
     from .services import prepare
     import io
+    if Company.objects.filter(operational_enabled=True).exists():
+        messages.info(request,'A operação está ativa. Cadastre seus clientes e produtos para começar.');return redirect('operations_start')
     call_command('seed_demo',stdout=io.StringIO())
     day=timezone.localdate();prepare(request.user,day)
     messages.success(request,'Exemplos artificiais preparados. Preços e CNPJs continuam vazios até sua conferência.')

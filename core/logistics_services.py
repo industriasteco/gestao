@@ -18,10 +18,11 @@ def register_production(user, record):
     if record.losses and not record.notes.strip():
         raise ValidationError('Informe o motivo das perdas.')
     record.unit=record.product.unit
+    record.planned_for=record.planned_for or record.date
     record.cost_snapshot=record.product.production_cost
     record.actor=user
     record.full_clean();record.save()
-    event(user,record,'REGISTRAR_PRODUCAO',after={'product':str(record.product_id),'quantity':str(record.quantity),'losses':str(record.losses),'cost':str(record.cost_snapshot),'date':str(record.date)})
+    event(user,record,'REGISTRAR_PRODUCAO',after={'product':str(record.product_id),'quantity':str(record.quantity),'losses':str(record.losses),'cost':str(record.cost_snapshot),'date':str(record.date),'planned_for':str(record.planned_for)})
     return record
 
 
@@ -37,7 +38,9 @@ def build_manifest(user, route, day):
     stops=list(route.stops.select_related('client'))
     if not stops:raise ValidationError('Cadastre os clientes e a ordem de entrega da rota.')
     if any(s.client.company_id!=route.company_id for s in stops):raise ValidationError('A rota contém cliente de outra empresa.')
-    orders=list(Order.objects.select_for_update().filter(company=route.company,date=day,client__in=[s.client for s in stops],client__active=True).exclude(status='CANCELADO').select_related('client').prefetch_related('items__product').order_by('time','id'))
+    selection=Order.objects.select_for_update().filter(company=route.company,date=day,client__in=[s.client for s in stops],client__active=True).exclude(status='CANCELADO')
+    if route.company.operational_enabled:selection=selection.filter(synthetic=False)
+    orders=list(selection.select_related('client').prefetch_related('items__product').order_by('time','id'))
     if not orders:raise ValidationError('Não há pedidos nessa rota e data. Prepare primeiro os novos pedidos do dia.')
     if any(order.status not in ('EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO') for order in orders):raise ValidationError('Há pedidos sem documento emitido. Confira os pedidos e emita os documentos antes de organizar a saída da rota.')
     if ManifestLine.objects.filter(order__in=orders).exists():raise ValidationError('Um dos pedidos já pertence a outro romaneio. Confira as rotas para evitar entrega duplicada.')
@@ -86,7 +89,7 @@ def report_delivery(user, line, data):
     for field in ('delivery_status','reported_amount','receivable','evidence'):setattr(line,field,data.get(field))
     line.payment_method=method
     line.payment_reported=True;line.full_clean();line.save()
-    if line.delivery_status=='ENTREGUE' and line.order.synthetic and line.order.status=='EMITIDO':
+    if line.delivery_status=='ENTREGUE' and line.order.status=='EMITIDO':
         from .workflow import deliver
         deliver(user,line.order_id,line.evidence)
     event(user,line,'RELATAR_ENTREGA_MALOTE',after={'delivery_status':line.delivery_status,'reported_amount':str(amount),'account':str(account.pk) if account else ''},reason=line.evidence)

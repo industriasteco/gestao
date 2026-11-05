@@ -178,7 +178,7 @@ def import_workbook(user, company, data, filename, start):
         if pattern['stable'] and clients[pattern['client']].active and products[pattern['product']].active:
             # Não duplica regras já existentes, mesmo de outra planilha.
             existing = Recurrence.objects.filter(company=company, client=clients[pattern['client']],
-                product=products[pattern['product']], active=True)
+                product=products[pattern['product']], active=True, archived=False)
             if any(pattern['weekday'] in rule.weekdays for rule in existing):
                 pattern['stable'] = False
                 pattern['reason'] = 'Já há uma rotina ativa; comparar antes de substituir.'

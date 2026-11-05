@@ -17,15 +17,17 @@ def authorize(user, company, permission):
 @transaction.atomic
 def activate(user, rule, reason):
     authorize(user,rule.company,'core.activate_recurrence')
+    if rule.archived:raise ValidationError('Esta rotina foi retirada da programação. Cadastre uma nova rotina confirmada.')
     if not reason.strip(): raise ValidationError('Motivo obrigatório')
     rule.active=True; rule.full_clean(); rule.save()
     Audit.objects.create(actor=user,entity=str(rule.pk),action='ATIVAR',after={'active':True},reason=reason)
 
 @transaction.atomic
 def prepare(user, day, automatic_only=False):
-    scope=companies(user)
+    from .operations import production_companies
+    scope=production_companies(user)
     list(Company.objects.select_for_update().filter(pk__in=scope.values('pk')).order_by('pk'))
-    rules=Recurrence.objects.select_for_update().filter(active=True,company__in=scope,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day)).select_related('company','client','product')
+    rules=Recurrence.objects.select_for_update().filter(active=True,archived=False,company__in=scope,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day)).select_related('company','client','product')
     if automatic_only:rules=rules.filter(auto_prepare=True)
     groups=defaultdict(list)
     for rule in rules:
@@ -35,18 +37,19 @@ def prepare(user, day, automatic_only=False):
         if exception and exception.suspended:continue
         if not rule.client.active or not rule.product.active or not rule.company.active:continue
         if rule.client.company_id!=rule.company_id or rule.product.company_id!=rule.company_id:raise ValidationError('Empresa incompatível')
-        key=f'planned:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.time}:{rule.shift}'
+        prefix='operational' if rule.company.operational_enabled else 'planned'
+        key=f'{prefix}:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.time}:{rule.shift}'
         groups[key].append((rule,exception))
     count=0
     for key,group in groups.items():
         rule=group[0][0]
         rule_ids=[str(r.pk) for r,_ in group]
-        existing=Order.objects.filter(company=rule.company,client=rule.client,date=day)
+        existing=Order.objects.filter(company=rule.company,client=rule.client,date=day,synthetic=not rule.company.operational_enabled)
         # Compatibilidade com os pedidos anteriores e rastreio de todos os fixos
         # agrupados: editar horário/turno não cria outra cópia na mesma data.
         if existing.filter(recurrence_id__in=rule_ids).exists():continue
         if any(existing.filter(preparation_rules__contains=[pk]).exists() for pk in rule_ids):continue
-        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,preparation_rules=rule_ids,date=day,slot=rule.slot,time=rule.time,shift=rule.shift,notes='\n'.join(dict.fromkeys(r.notes for r,_ in group if r.notes))))
+        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,preparation_rules=rule_ids,date=day,slot=rule.slot,time=rule.time,shift=rule.shift,synthetic=not rule.company.operational_enabled,notes='\n'.join(dict.fromkeys(r.notes for r,_ in group if r.notes))))
         if not created:continue
         lines={}
         for rule,exception in group:
@@ -70,7 +73,8 @@ def production(orders):
 
 @transaction.atomic
 def check_production(user,day):
-    orders=Order.objects.select_for_update().filter(date=day,company__in=companies(user),status__in=['PRE_LANCADO','CONFERIDO'],pk__in=OrderItem.objects.filter(quantity__gt=0).values('order_id'))
+    from .operations import production_orders
+    orders=production_orders(user).select_for_update().filter(date=day,status__in=['PRE_LANCADO','CONFERIDO'],pk__in=OrderItem.objects.filter(quantity__gt=0).values('order_id'))
     for order in orders:
         authorize(user,order.company,'core.check_production')
         if not order.shift or not order.items.filter(quantity__gt=0).exists(): raise ValidationError('Turno ou itens ausentes')

@@ -8,6 +8,7 @@ from django.contrib import messages
 from .models import *
 from .workflow import cancel as cancel_workflow
 from .services import companies,prepare,production,review,check_production,adjust,cancel,stage_bytes
+from .operations import production_orders,production_companies
 
 @login_required
 def daily(request):
@@ -38,8 +39,8 @@ def daily(request):
             count=prepare(request.user,day,automatic_only=True)
             if count:messages.success(request,f'{count} pedidos recorrentes preparados automaticamente para esta data.')
         except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
-    orders=Order.objects.filter(company__in=companies(request.user),date=day).select_related('company','client').prefetch_related('items')
-    return render(request,'core/daily.html',dict(day=day.isoformat(),orders=orders,production=production(orders),companies=companies(request.user)))
+    orders=production_orders(request.user).filter(date=day).select_related('company','client').prefetch_related('items')
+    return render(request,'core/daily.html',dict(day=day.isoformat(),orders=orders,production=production(orders),companies=production_companies(request.user)))
 
 @login_required
 def staging(request):

@@ -17,7 +17,7 @@ O teste local da planilha real cadastrou apenas cadastros/rotinas, com **0 pedid
 ## Publicar em homologação
 
 1. Publicar o código revisado na branch usada pelo serviço Render.
-2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0019` no deploy.
+2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0024` no deploy.
 3. Acessar o sistema com a conta existente. A página inicial abre o painel; `/?date=AAAA-MM-DD` mantém compatibilidade com a produção diária.
 4. Em Produtos, cadastrar preços confirmados. Na ficha do cliente, definir exceções negociadas.
 5. Em Rotinas, analisar a planilha original, selecionar TECO e a data de início futura. Confirmar que a ação cadastra somente clientes/produtos/rotinas.
@@ -73,3 +73,12 @@ Campo de número/referência da OC no pedido e no fechamento por período. Prese
 Cadastro de segunda a domingo com caixas de seleção, preços negociados por produto no mesmo formulário e no cadastro rápido. O primeiro pedido pode definir a rotina semanal; preços específicos também podem ser informados nas linhas do pedido. A ficha do cliente permite incluir produtos/quantidades recorrentes e sincroniza mudanças dos dias nas rotinas automáticas.
 
 As novas rotinas autorizadas são preparadas quando um usuário com permissão abre a produção de uma data atual/futura. A operação é idempotente, respeita dias selecionados, início, suspensão e escopo da empresa, e mantém pedidos já preparados e ajustados. Não emite PDFs nem registra produção realizada por conta própria. As rotinas legadas não recebem essa ativação pela migration `0019`. **158 testes** no conjunto completo, incluindo nove novos cenários de configuração, preços, datas, permissões e preservação.
+
+
+## Início da operação gerencial
+
+Atualização atual: **174 testes**, sem ignorados. [Como começar hoje](COMECE_HOJE.md). Migrations `0020`–`0024` acrescentam ativação por empresa, retirada das rotinas pré-cadastradas, permissão de preparar produção e datas separadas de lançamento/entrega/produção. A retirada local arquivou 145 rotinas, preservando 46 clientes, 20 produtos e zero pedidos importados. No site, a limpeza é aplicada ao publicar a atualização; rotinas novas confirmadas são preservadas.
+
+A tela Começar operação exige os dados próprios da empresa e ao menos um cliente, produto e preço para ativar. Novos pedidos passam a ser operacionais; exemplos anteriores ficam fora do planejamento operacional. Comprovantes de entrega não fiscais, fechamento por período e malotes funcionam com pedidos operacionais. A emissão própria de NF-e/NFC-e e integrações bancárias permanecem fora desta entrega. As restrições de homologação descritas nas etapas históricas acima correspondem às versões anteriores.
+
+Dezesseis novos testes cobrem retirada sem exclusão de dados, repetição segura do reset, critérios de ativação, permissões, pedido de amanhã lançado hoje, impressão comum/IBIS, separação de testes, fechamento, romaneio/malote, preparo pelo colaborador, bloqueio de entrega futura e produção física de hoje vinculada à programação de amanhã.

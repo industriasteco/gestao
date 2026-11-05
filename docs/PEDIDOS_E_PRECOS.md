@@ -24,9 +24,9 @@ As permissões existentes de cadastro são mantidas: somente administrador cria 
 
 ## Publicação e validação
 
-O comando de inicialização deve aplicar a migration `0019`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
+O comando de inicialização deve aplicar a migration `0024`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
 
-158 testes PostgreSQL no conjunto completo, incluindo oito cenários de preço e seis de cadastro durante o pedido. Cobertura de versões no mesmo dia, preços anteriores/futuros, condição negociada, custo/valor zero, dados inválidos, isolamento/permissões, CSRF, idempotência e preservação de notinha, proposta e fechamento. No navegador foram feitos cliente e produto novos, validação/correção, seleção automática, alteração repetida de preço e salvamento de pedido com seus dados preservados, em banco separado de exemplos. As telas e as caixas também foram conferidas no celular.
+174 testes PostgreSQL no conjunto completo, incluindo oito cenários de preço e seis de cadastro durante o pedido. Cobertura de versões no mesmo dia, preços anteriores/futuros, condição negociada, custo/valor zero, dados inválidos, isolamento/permissões, CSRF, idempotência e preservação de notinha, proposta e fechamento. No navegador foram feitos cliente e produto novos, validação/correção, seleção automática, alteração repetida de preço e salvamento de pedido com seus dados preservados, em banco separado de exemplos. As telas e as caixas também foram conferidas no celular.
 
 
 ## Dias e preços ao cadastrar o cliente
@@ -38,3 +38,10 @@ Os dias são uma preferência salva; os produtos e as quantidades precisam ser d
 Ao abrir **Pedidos e produção** numa data atual/futura, o sistema prepara automaticamente as rotinas confirmadas para aquele dia, desde que o acesso tenha permissão de preparar produção. O primeiro pedido já lançado é reconhecido e não é duplicado. Abrir novamente a mesma data preserva pedidos e ajustes. Datas passadas e rotinas importadas continuam dependendo do preparo manual existente; a atualização não importa pedidos antigos nem ativa o legado.
 
 Na ficha do cliente, o bloco **Dias recorrentes e pedido habitual** permite adicionar produto, quantidade, preço opcional, horário e turno. Alterar os dias em **Editar cadastro** atualiza as rotinas automáticas. Desmarcar todos os dias interrompe novos preparos; pedidos já preparados permanecem para conferência/ajuste. Uma rotina suspensa individualmente continua suspensa ao alterar os dias. Não há emissão automática, cobrança ou confirmação de produção realizada por marcar os dias.
+
+
+## Ativar o uso e preparar amanhã hoje
+
+Use [Começar hoje](COMECE_HOJE.md) e a tela Começar operação para conferir cadastros e ativar cada empresa. As rotinas antigas foram retiradas da programação na migration `0021`; novos pedidos recorrentes são configurados individualmente. Depois da ativação, novos pedidos são operacionais, com comprovantes não fiscais.
+
+Ao abrir a produção de amanhã e clicar em Novo pedido, a data escolhida acompanha o formulário. O lançamento de hoje e a entrega de amanhã ficam separados. Em Produção realizada, data física = quando o lote foi produzido; campo de pedidos/entregas = data da programação correspondente.

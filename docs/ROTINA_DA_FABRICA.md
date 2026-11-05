@@ -19,13 +19,15 @@ Ao abrir a produção de uma data atual/futura com o acesso autorizado a prepara
 
 O padeiro consulta o planejamento. A equipe registra cada lote ou fechamento de turno: produto, quantidade total produzida, quantidade perdida, responsável e motivo das perdas. A quantidade útil é o total menos as perdas. A comparação por empresa/produto evidencia falta ou excedente.
 
+Se produziu hoje para entregar amanhã, registre a data física de hoje e a data de pedidos/entregas de amanhã no lote. A comparação usa a programação correspondente.
+
 O custo da produção é preservado no lote. Alterar o custo do produto depois não muda esse registro. Sem custo cadastrado, a perda aparece em quantidade, mas fica fora do total monetário de perdas conhecidas.
 
 ## Na saída das entregas
 
 Informe os padeiros de cada turno e o responsável pela separação. Confira a produção e use Finalizar dia para gerar o PDF único das notinhas e o PDF com produção geral/noturna/diurna. As notinhas usam a empresa vinculada ao cliente: TECO ou NONA. Pedidos com quantidade zero não são emitidos. No IBIS, imprima A4 retrato, notinha na frente e etiquetas no verso, tamanho real/100%.
 
-Confira os pedidos e emita os documentos de homologação. Gere o romaneio da rota/data e imprima o PDF. O documento mantém a sequência de clientes, endereço, produtos, instruções e valores conhecidos. Um pedido não pode pertencer a dois romaneios.
+Depois de ativar a empresa, confira os pedidos e emita os comprovantes de entrega não fiscais. Gere o romaneio da rota/data e imprima o PDF. O documento mantém a sequência de clientes, endereço, produtos, instruções e valores conhecidos. Um pedido não pode pertencer a dois romaneios.
 
 O romaneio preserva o conteúdo da saída. Se a operação mudar depois, revise o documento antes de entregar; o sistema não substitui silenciosamente o que foi impresso.
 
@@ -64,7 +66,7 @@ O demonstrativo é o total fornecido, não uma nova dívida. Recebimentos e sald
 
 ## Limites desta etapa
 
-O ambiente continua em homologação. Estoque e custos são informados, sem ficha técnica automática ou integração bancária. Não há cálculo de lucro líquido, emissão fiscal integrada, baixa automática de insumos por receita ou correção automática após aprovação fiscal. A implantação e a conferência dos dados reais devem preceder a operação definitiva.
+A operação gerencial é ativada por empresa em Começar operação. Estoque e custos são informados, sem ficha técnica automática ou integração bancária. Não há cálculo de lucro líquido, emissão fiscal integrada, baixa automática de insumos por receita ou correção automática após aprovação fiscal. A implantação e a conferência dos dados reais devem preceder a operação definitiva.
 
 
 ## Compras e contas a pagar

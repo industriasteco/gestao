@@ -116,5 +116,5 @@ def common_receipt(c,s,items,part,parts,x,top,width,height,customer):
     else:text(c,'Conferência / embalagem: ______________________________',x+4,after-28,width-8,6.5)
     text(c,'Padeiro: '+s.get('baker','')+' | Separação: '+s.get('separator',''),x+4,after-43,width-8,6.3,max_lines=2)
     text(c,'Visto / recebido por: _________________________________',x+4,top-height+22,width-8,6.6)
-    text(c,'HOMOLOGACAO - NAO COBRAR - DOCUMENTO NAO FISCAL',x+4,top-height+10,width-8,5.6,align='center')
+    text(c,'HOMOLOGACAO - NAO COBRAR - DOCUMENTO NAO FISCAL' if s.get('synthetic',True) else 'COMPROVANTE DE ENTREGA - DOCUMENTO NAO FISCAL',x+4,top-height+10,width-8,5.6,align='center')
     c.restoreState()

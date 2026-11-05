@@ -31,7 +31,7 @@ def sync_client_days(user,client,previous_days):
     days=recurring_days(client)
     if days==sorted(previous_days):return
     Company.objects.select_for_update().get(pk=client.company_id)
-    for rule in Recurrence.objects.select_for_update().filter(client=client,auto_prepare=True):
+    for rule in Recurrence.objects.select_for_update().filter(client=client,auto_prepare=True,archived=False):
         before=list(rule.weekdays);rule.weekdays=days;rule.save(update_fields=['weekdays'])
         event(user,rule,'ALTERAR_DIAS_CLIENTE',{'weekdays':before},{'weekdays':days})
     event(user,client,'ALTERAR_DIAS_RECORRENTES',{'weekdays':previous_days},{'weekdays':days})
@@ -53,7 +53,7 @@ def save_recurring_items(user,client,lines,slot,time,shift,notes='',origin=None,
         if not quantity.is_finite() or quantity<=0:raise ValidationError('Informe quantidades positivas para a rotina.')
         grouped.setdefault(product.pk,[product,Decimal(0)])[1]+=quantity
     if not grouped or len(grouped)>100:raise ValidationError('Informe de 1 a 100 produtos recorrentes.')
-    existing=Recurrence.objects.select_for_update().filter(client=client,auto_prepare=True,slot=slot,time=time,shift=shift)
+    existing=Recurrence.objects.select_for_update().filter(client=client,auto_prepare=True,archived=False,slot=slot,time=time,shift=shift)
     by_product={};rules=[]
     for rule in existing:by_product.setdefault(rule.product_id,[]).append(rule)
     start=max(timezone.localdate(),origin.date) if origin else timezone.localdate()

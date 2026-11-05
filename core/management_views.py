@@ -16,6 +16,7 @@ from .services import companies, authorize, prices_on
 from .management_services import balances, receive, move_stock, set_current_price
 from .workflow import event
 from .client_setup import sync_client_days,save_recurring_items
+from .operations import production_orders
 
 
 def admin_only(user):
@@ -43,9 +44,8 @@ def dashboard(request):
         messages.error(request,'; '.join(exc.messages));return redirect('dashboard')
     if request.GET.get('company'):
         scope=scope.filter(pk=request.GET['company'])
-    orders=Order.objects.filter(company__in=scope,date__range=(start,end)).exclude(status='CANCELADO')
-    # O fluxo atual só emite documentos de homologação. Indicadores de venda não
-    # incluem esses testes nem pedidos ainda não emitidos.
+    orders=production_orders(request.user).filter(company__in=scope,date__range=(start,end)).exclude(status='CANCELADO')
+    # Indicadores comerciais excluem exemplos e pedidos ainda não emitidos.
     sold=orders.filter(synthetic=False,status__in=['EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO'])
     items=OrderItem.objects.filter(order__in=sold)
     revenue=Decimal(0); by_company=defaultdict(Decimal); by_client=defaultdict(Decimal)
@@ -89,6 +89,12 @@ def dashboard(request):
     return render(request,'core/dashboard.html',context)
 
 
+def client_routine_pending(user,client):
+    if not user.is_superuser:return Candidate.objects.none()
+    rows=Candidate.objects.filter(category='ROTINA_A_CONFERIR',raw__client=' '.join(client.name.upper().split()))
+    return rows.filter(batch__created_at__gte=client.company.routines_reset_at) if client.company.routines_reset_at else rows
+
+
 @login_required
 def client_detail(request,pk):
     client=get_object_or_404(Client,pk=pk,company__in=companies(request.user))
@@ -127,9 +133,9 @@ def client_detail(request,pk):
     overdue=[r for r in accounts if r.days_late]
     status='Inadimplente' if overdue else ('Adimplente' if accounts else 'Sem histórico financeiro')
     return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,routine_form=routine,
-        status=status,accounts=accounts,pending=Candidate.objects.filter(category='ROTINA_A_CONFERIR',raw__client=' '.join(client.name.upper().split())) if request.user.is_superuser else Candidate.objects.none(),prices=prices_on(timezone.localdate()).filter(client=client).select_related('product').order_by('product__name'),
+        status=status,accounts=accounts,pending=client_routine_pending(request.user,client),prices=prices_on(timezone.localdate()).filter(client=client).select_related('product').order_by('product__name'),
         price_history=Price.objects.filter(client=client).select_related('product').order_by('-valid_from','product__name'),today=timezone.localdate(),
-        rules=Recurrence.objects.filter(client=client).select_related('product').order_by('product__name','time'),
+        rules=Recurrence.objects.filter(client=client,archived=False).select_related('product').order_by('product__name','time'),
         orders=Order.objects.filter(client=client).order_by('-date')[:20],
         events=Audit.objects.filter(Q(entity=str(client.pk))|Q(entity__in=[str(pk) for pk in Price.objects.filter(client=client).values_list('id',flat=True)])).order_by('-at')[:30]))
 
@@ -244,16 +250,18 @@ def routines_import(request):
 
 @login_required
 def routines(request):
-    rows=Recurrence.objects.filter(company__in=companies(request.user)).select_related('client','product','company').order_by('client__name','product__name')
+    rows=Recurrence.objects.filter(company__in=companies(request.user),archived=False).select_related('client','product','company').order_by('client__name','product__name')
     query=request.GET.get('q','').strip()
     if query:rows=rows.filter(Q(client__name__icontains=query)|Q(product__name__icontains=query))
     pending=Candidate.objects.filter(category__in=['ROTINA_A_CONFERIR','ITEM_A_CONFERIR']) if request.user.is_superuser else Candidate.objects.none()
+    reset_dates=list(companies(request.user).exclude(routines_reset_at=None).values_list('routines_reset_at',flat=True))
+    if reset_dates:pending=pending.filter(batch__created_at__gte=min(reset_dates))
     return render(request,'core/routines.html',{'rows':rows,'pending':pending,'q':query})
 
 
 @login_required
 def routine_detail(request,pk):
-    row=get_object_or_404(Recurrence,pk=pk,company__in=companies(request.user))
+    row=get_object_or_404(Recurrence,pk=pk,company__in=companies(request.user),archived=False)
     form=RecurrenceForm(request.POST or None,instance=row,user=request.user)
     for name in ('company','client','product'):form.fields[name].disabled=True
     if request.method=='POST':

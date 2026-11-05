@@ -7,8 +7,10 @@ from core import logistics_views as lg
 from core import statement_views as st
 from core import payables_views as ap
 from core import proposal_views as pr
+from core import operations_views as ov
 from core.access import first_access,ERPLoginView
 urlpatterns=[
+    path('comecar/',ov.operations_start,name='operations_start'),
     path('accounts/login/',ERPLoginView.as_view(),name='login'),
     path('cadastros/rapidos/<str:kind>/',op.quick_record,name='quick_record'),
     path('propostas/',pr.proposals,name='proposals'),

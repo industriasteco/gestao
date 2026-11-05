@@ -26,7 +26,7 @@ def header(c,s,x,y,width,customer):
     c.drawString(x+25*mm,y-14*mm,'VIA CLIENTE' if customer else 'VIA EMPRESA / SEM VALORES')
     c.setFont('Helvetica-Bold',8);c.drawString(x,y-25*mm,s['client_name'][:60])
     c.setFont('Helvetica',7);c.drawString(x,y-30*mm,f"{s['number']} | {s['date']} | {s['slot']} {s['time']}")
-    c.drawString(x,y-35*mm,'HOMOLOGACAO - NAO COBRAR - DOCUMENTO NAO FISCAL')
+    c.drawString(x,y-35*mm,'HOMOLOGACAO - NAO COBRAR - DOCUMENTO NAO FISCAL' if s.get('synthetic',True) else 'COMPROVANTE DE ENTREGA - DOCUMENTO NAO FISCAL')
     c.setFont('Helvetica',6)
     c.drawString(x,y-39*mm,('Padeiro: '+s.get('baker','')+' | Separacao: '+s.get('separator',''))[:140])
     c.drawString(x,y-43*mm,s.get('client_address','')[:160])
@@ -35,7 +35,7 @@ def header(c,s,x,y,width,customer):
 
 def receipts(snapshots):
     buffer=BytesIO();c=canvas.Canvas(buffer,pagesize=A4,pageCompression=0,invariant=1)
-    c.setTitle('Comprovantes de homologacao - NAO COBRAR')
+    c.setTitle('Comprovantes de homologacao - NAO COBRAR' if any(s.get('synthetic',True) for s in snapshots) else 'Comprovantes de entrega - documentos nao fiscais')
     slot=0
     for s in snapshots:
         chunks=[s['items'][i:i+10] for i in range(0,len(s['items']),10)] or [[]]

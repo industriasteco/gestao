@@ -1,4 +1,4 @@
-"""Fluxos transacionais de homologação. Nenhum pedido real é faturado."""
+"""Pedidos e comprovantes não fiscais, com operação e testes separados."""
 import hashlib
 from datetime import date
 from decimal import Decimal,ROUND_HALF_UP
@@ -22,7 +22,9 @@ def permitted(permission):
         def wrapper(user,order_id,*args,**kwargs):
             order=Order.objects.get(pk=order_id)
             authorize(user,order.company,permission)
-            if not order.synthetic:raise ValidationError('Operação real bloqueada: use pedidos artificiais na homologação.')
+            if not order.synthetic:
+                from .operations import require_operational
+                require_operational(order.company)
             return fn(user,order_id,*args,**kwargs)
         return wrapper
     return decorator
@@ -50,26 +52,27 @@ def issue(user,order_id):
         items.append(dict(name=item.product_name,unit=item.unit,quantity=str(item.quantity),price=str(amount),total=str(line)))
         total+=line
     if not items:raise ValidationError('Pedido sem itens positivos.')
-    # CNPJ intentionally stays missing in homologation; never invent a tax identity.
-    number=f'{order.company.code}-TESTE-{str(order.pk)[:12].upper()}'
-    snapshot=dict(company_code=order.company.code,company_name=order.company.name,legal_name=order.company.legal_name,company_address=order.company.address,company_phone=order.company.phone,company_email=order.company.email,client_address=order.client.address,client_contact=order.client.phone or order.client.email,baker=order.baker,separator=order.separator,shift=order.shift,notes=order.notes,purchase_order=order.purchase_order.strip(),cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
+    # A identificação da emissora vem do cadastro confirmado; nunca presumir CNPJ.
+    number=f'{order.company.code}-TESTE-{str(order.pk)[:12].upper()}' if order.synthetic else f'{order.company.code}-{order.date:%Y%m%d}-{str(order.pk)[:12].upper()}'
+    snapshot=dict(synthetic=order.synthetic,company_code=order.company.code,company_name=order.company.name,legal_name=order.company.legal_name,company_address=order.company.address,company_phone=order.company.phone,company_email=order.company.email,client_address=order.client.address,client_contact=order.client.phone or order.client.email,baker=order.baker,separator=order.separator,shift=order.shift,notes=order.notes,purchase_order=order.purchase_order.strip(),cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
     try:data=pdf.receipts([snapshot])
     except ValueError as exc:raise ValidationError(str(exc)) from exc
     # # failure rolls back all state and snapshots
     document=store_document(order.company,f'order:{order.pk}:v1','NOTINHAS',data,order)
     order.issued_snapshot=snapshot;order.commercial_number=number;order.issued_at=timezone.now();order.status='EMITIDO';order.save()
-    event(user,order,'EMITIR_TESTE',{'status':'CONFERIDO'},{'status':'EMITIDO','sha256':document.sha256})
+    event(user,order,'EMITIR_TESTE' if order.synthetic else 'EMITIR_COMPROVANTE',{'status':'CONFERIDO'},{'status':'EMITIDO','sha256':document.sha256})
     return document
 
 @permitted('core.confirm_delivery')
 @transaction.atomic
 def deliver(user,order_id,evidence):
     order=Order.objects.select_for_update().get(pk=order_id)
-    if not evidence.strip():raise ValidationError('Descreva a evidência da entrega de teste.')
+    if not evidence.strip():raise ValidationError('Descreva a evidência da entrega.')
     if order.status in ('ENTREGUE','LIBERADO_FECHAMENTO','FECHADO'):return order
     if order.status!='EMITIDO':raise ValidationError('A entrega só pode ser confirmada após emissão.')
+    if not order.synthetic and order.date>timezone.localdate():raise ValidationError('Confirme a entrega somente na data prevista ou depois, com a evidência recebida.')
     order.status='ENTREGUE';order.delivered_at=timezone.now();order.delivery_evidence=evidence;order.save()
-    event(user,order,'CONFIRMAR_ENTREGA_TESTE',{'status':'EMITIDO'},{'status':'ENTREGUE'},evidence)
+    event(user,order,'CONFIRMAR_ENTREGA_TESTE' if order.synthetic else 'CONFIRMAR_ENTREGA',{'status':'EMITIDO'},{'status':'ENTREGUE'},evidence)
     return order
 
 @permitted('core.close_month')
@@ -79,7 +82,7 @@ def release(user,order_id):
     if order.status=='LIBERADO_FECHAMENTO':return order
     if order.status!='ENTREGUE' or not order.delivered_at or not order.issued_snapshot:raise ValidationError('Entrega comprovada e preços congelados são obrigatórios.')
     order.status='LIBERADO_FECHAMENTO';order.save(update_fields=['status'])
-    event(user,order,'LIBERAR_TESTE',{'status':'ENTREGUE'},{'status':'LIBERADO_FECHAMENTO'})
+    event(user,order,'LIBERAR_TESTE' if order.synthetic else 'LIBERAR_PARA_FECHAMENTO',{'status':'ENTREGUE'},{'status':'LIBERADO_FECHAMENTO'})
     return order
 
 @permitted('core.check_production')
@@ -128,15 +131,16 @@ def daily_document(user,day,company):
     authorize(user,company,'core.issue_document')
     with transaction.atomic():
         Company.objects.select_for_update().get(pk=company.pk)
-        orders=list(Order.objects.filter(company=company,date=day,status__in=['EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO']).order_by('time','pk'))
+        orders=list(Order.objects.filter(company=company,date=day,synthetic=not company.operational_enabled,status__in=['EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO']).order_by('time','pk'))
         if not orders:raise ValidationError('Nenhum documento emitido para esta data/empresa.')
         digest=hashlib.sha256('|'.join(str(o.pk) for o in orders).encode()).hexdigest()
         key=f'daily:{company.pk}:{day}:{digest}'
         old=Document.objects.filter(key=key).first()
         if old:return old
         data=pdf.receipts([o.issued_snapshot for o in orders])
-        doc=store_document(company,key,'DIA_TESTE',data)
-        event(user,doc,'PDF_DIA_TESTE',after={'orders':len(orders),'sha256':doc.sha256})
+        synthetic=all(order.synthetic for order in orders)
+        doc=store_document(company,key,'DIA_TESTE' if synthetic else 'COMPROVANTES_DIA',data)
+        event(user,doc,'PDF_DIA_TESTE' if synthetic else 'PDF_COMPROVANTES_DIA',after={'orders':len(orders),'sha256':doc.sha256})
         return doc
 
 def reconcile(user,candidate,number,evidence,reason):

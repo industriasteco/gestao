@@ -39,4 +39,4 @@ Nenhuma planilha/CSV de clientes deve ser publicada no GitHub. O repositório de
 
 ## 5. Limites desta instalação
 
-Esta versão é de homologação, com documentos marcados NÃO COBRAR. Dados reais e cobranças continuam bloqueados. Impressão IBIS deve ser medida na impressora real. Antes de depender do ERP diariamente: validar cadastros e regras, configurar recuperação/backup durável, monitoramento e acessos, e homologar a operação real. Não há emissão de nota fiscal oficial.
+A instalação começa em configuração/teste. Para iniciar o uso gerencial, complete e ative cada empresa em **Começar operação**, seguindo [o roteiro do primeiro dia](COMECE_HOJE.md). Pedidos antigos de teste permanecem identificados e separados; novos pedidos de empresa ativada geram comprovantes de entrega não fiscais. Impressão IBIS deve ser medida na impressora real. Antes de depender do ERP diariamente: validar cadastros e regras, configurar recuperação/backup durável, monitoramento e acessos, e homologar a operação real. Não há emissão de nota fiscal oficial.

@@ -1,12 +1,12 @@
 # ERP Teco + Nona — homologação
 
-Sistema web Django / PostgreSQL em português, com pedidos, produção por turno, staging privado do legado e documentos comerciais **de teste**. Operação real e cobrança permanecem bloqueadas. PDFs não são documentos fiscais.
+Sistema web Django / PostgreSQL em português, com pedidos, produção por turno, entregas, financeiro e documentos comerciais não fiscais. Cada empresa começa em configuração/teste e pode ativar a operação gerencial depois da conferência em **Começar operação**. NF-e/NFC-e própria permanece uma etapa futura.
 
 ## Para quem não programa
 
 A instalação na internet está explicada em [Hospedagem: passo a passo](docs/HOSPEDAGEM_PASSO_A_PASSO.md). Depois de criar o primeiro acesso, abra **Como usar** dentro do sistema. O botão **Preparar meus exemplos de teste** dispensa comandos.
 
-Fluxo: **Preparar dia → Conferir produção → Abrir pedido → Gerar documento de teste → Confirmar entrega → Liberar → Fechamento de teste**. Cada etapa é separada e pede a conferência apropriada. Preços ausentes bloqueiam emissão; nenhum preço ou CNPJ é inventado.
+Fluxo operacional: **Começar operação → conferir cadastros → ativar empresa → lançar pedidos pela data da entrega → conferir produção → imprimir comprovantes não fiscais → confirmar entrega → fechamento do cliente**. Preços ausentes bloqueiam emissão; nenhum preço ou CNPJ é inventado. [Começar hoje](docs/COMECE_HOJE.md) explica o primeiro dia.
 
 Dados antigos só entram na tela autenticada **Dados antigos**. Aprovar uma revisão não cria pedido ou cobrança e não ativa recorrência. As 101 regras legadas são candidatas desativadas. Notas de 01–04/11/2026 são auditoria e 05/11 é previsão.
 
@@ -43,20 +43,20 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-158 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+174 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
 `core/models.py` e migrations: entidades e constraints; `services.py`: planejamento/staging; `workflow.py`: transações de homologação; `pdf.py`: PDFs; `backup.py`: verificação de restauração; `forms.py` e templates: operação guiada. Documento armazenado privadamente no PostgreSQL com hash. Auditoria protegida por trigger contra alteração/exclusão, preservado o papel administrativo do DBA.
 
-[Etapa 1](docs/ETAPA_1.md), [Etapa 2 e pendências](docs/ETAPA_2.md). Ainda pendentes: operação real homologada, MFA, backup durável criptografado/agendado, devoluções parciais, correções pós-fechamento, compartilhamento de clientes com vigências, integração fiscal e teste físico da impressora.
+[Etapa 1](docs/ETAPA_1.md), [Etapa 2 e pendências](docs/ETAPA_2.md). Ainda pendentes: emissão fiscal própria homologada, MFA, backup durável criptografado/agendado, devoluções parciais, correções pós-fechamento, compartilhamento de clientes com vigências, integração fiscal e teste físico da impressora.
 
 Este repositório é público. As fontes privadas (`reference/`, planilhas, CSVs originais e arquivos de credenciais) ficam fora do versionamento. Nesta tarefa estão no ZIP anexado e em `/workspace/erp-reference`; na hospedagem, carregue CSVs pela área protegida do ERP. Macros VBA não são executadas.
 
 
 ## Evolução gerencial — novembro de 2026
 
-Página inicial com painel, filtros por período/empresa, faturamento e rankings de vendas reais emitidas, vencimentos em atraso e alerta de estoque. Pedidos de teste não entram no faturamento. O fluxo de emissão continua em homologação: os indicadores de vendas reais começarão a ser alimentados quando esse fluxo for liberado.
+Página inicial com painel, filtros por período/empresa, faturamento e rankings de vendas reais emitidas, vencimentos em atraso e alerta de estoque. Pedidos de teste não entram no faturamento. Após ativar a empresa, pedidos operacionais emitidos alimentam os indicadores comerciais; pedidos de teste ficam fora desses totais.
 
 Produtos permitem cadastrar e alterar o preço padrão diretamente no formulário, sem datas. A ficha do cliente reúne observações, condições negociadas por produto, rotinas, pedidos novos e contas. A aba **Preços** oferece **Alterar preço** em cada condição. O valor entra em uso imediatamente e fica sem prazo de término; trocas no mesmo dia são permitidas e o histórico é registrado automaticamente. Documentos emitidos preservam seus valores. Contas a receber e recebimentos parciais têm registro manual confirmado e auditoria; não há envio automático de cobrança, conciliação bancária ou criação de dívida pela planilha.
 
@@ -85,12 +85,12 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 **Fechamento de clientes** aceita mês ou período livre, gera PDF preservado de entregas confirmadas, registra envio/aprovação/ressalva e exporta CSV após aprovação. Não envia mensagens, não emite NF-e e não cria dívida automaticamente. O mesmo pedido não entra em dois fechamentos ativos.
 
-[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0019` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
+[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0024` são aditivas e não apagam pedidos da hospedagem. A emissão de NF-e continua no ambiente fiscal externo; a operação gerencial e os comprovantes de entrega são ativados por empresa.
 
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0019`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0024`.
 
 
 ### Contas a pagar e XML de compras
@@ -124,3 +124,12 @@ Em **Novo pedido**, selecione a empresa e use **Novo cliente** ao lado do destin
 No cadastro do cliente, inclusive na caixa aberta durante o pedido, marque os dias da semana e cadastre preços negociados por produto. No primeiro pedido, **Repetir este pedido nos dias recorrentes do cliente** usa os itens, quantidades, horário e turno como rotina ativa. Também há campo de preço negociado por item do pedido e configuração de produto/quantidade recorrente na ficha do cliente.
 
 Ao abrir **Pedidos e produção** numa data atual ou futura, as novas rotinas automáticas autorizadas entram no planejamento uma única vez. A geração exige a permissão de preparar o dia; registros antigos/importados continuam com preparação manual por padrão. Não há geração retroativa ao consultar datas passadas. Alterar os dias do cliente atualiza suas rotinas automáticas e preserva pedidos já preparados. A migration `0019` adiciona campos com valores vazios/desativados, sem criar pedidos existentes ou alterar preços. [Fluxo detalhado](docs/PEDIDOS_E_PRECOS.md).
+
+
+### Começar do zero e ativar a operação
+
+**Começar operação** (`/comecar/`) mostra as pendências das empresas e permite ativar os pedidos operacionais após conferência do administrador. A migration `0021` retira da programação as rotinas antigas com preparo manual, preservando as rotinas novas explicitamente confirmadas pelo usuário, cadastros, preços, pedidos e documentos. Há uma ação protegida para retirar também todas as rotinas atuais se o administrador quiser reiniciar. Rotinas retiradas continuam no histórico e não podem ser reativadas pelas telas usuais.
+
+Modo operacional mantém pedidos de teste separados, emite comprovantes de entrega não fiscais, alimenta vendas gerenciais e permite entrega/fechamento/malote. Não habilita transmissão de NF-e/NFC-e nem cobrança bancária automática. A permissão de preparar dias foi incluída no perfil Produção, dentro da empresa do colaborador, sem permissões financeiras.
+
+A data da produção/entrega escolhida acompanha Novo pedido; o horário do lançamento é registrado separadamente. Produção realizada permite registrar o lote feito hoje e relacioná-lo aos pedidos/entregas de amanhã, mantendo a data física correta. Confirmação de entrega operacional futura é bloqueada até a data prevista. [Roteiro completo do primeiro dia](docs/COMECE_HOJE.md).

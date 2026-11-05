@@ -89,6 +89,10 @@ class OperationsTests(TestCase):
         self.assertEqual(DeliveryManifest.objects.count(),1)
 
     def test_cash_report_does_not_pay_account_until_bag_matches(self):
+        self.company.operational_enabled=True
+        self.company.cnpj='11111111111111';self.company.legal_name='RAZÃO ARTIFICIAL'
+        self.company.address='Endereço artificial';self.company.phone='Contato artificial'
+        self.company.code='NONA';self.company.save()
         self.make_order(synthetic=False)
         manifest=build_manifest(self.user,self.route,self.today);line=manifest.lines.get();account=self.account()
         self.report(line,'10',account)

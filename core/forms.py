@@ -76,6 +76,10 @@ class MonthForm(forms.Form):
 class ManualOrderForm(ScopedForm):
     key=forms.UUIDField(widget=forms.HiddenInput)
     repeat_weekly=forms.BooleanField(required=False,label='Repetir este pedido nos dias recorrentes do cliente',help_text='Usa os produtos e quantidades deste pedido como rotina semanal. Outros pedidos e documentos já preparados ficam preservados.')
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        scope=self.fields['company'].queryset
+        if scope.filter(operational_enabled=True).exists():self.fields['company'].queryset=scope.filter(operational_enabled=True)
     def clean(self):
         data=super().clean()
         if data.get('repeat_weekly'):
@@ -179,10 +183,11 @@ class WorkbookForm(forms.Form):
         return file
 
 class ProductionRecordForm(ScopedForm):
+    planned_for=forms.DateField(label='Produção para os pedidos / entregas de',required=False,help_text='Pode ser amanhã quando o lote foi produzido hoje à noite. Em branco, usa a data de produção.')
     class Meta:
         model=ProductionRecord
-        fields=['company','product','date','shift','batch','quantity','losses','baker','notes']
-        labels={'company':'Empresa','product':'Produto','date':'Data da produção','shift':'Turno','batch':'Identificação do lote','quantity':'Quantidade total produzida','losses':'Quantidade perdida (parte do total)','baker':'Padeiro responsável','notes':'Observações / motivo das perdas'}
+        fields=['company','product','date','planned_for','shift','batch','quantity','losses','baker','notes']
+        labels={'company':'Empresa','product':'Produto','date':'Data em que foi realmente produzido','shift':'Turno','batch':'Identificação do lote','quantity':'Quantidade total produzida','losses':'Quantidade perdida (parte do total)','baker':'Padeiro responsável','notes':'Observações / motivo das perdas'}
     def clean(self):
         data=super().clean()
         if data.get('date') and data['date']>timezone.localdate():self.add_error('date','Registre somente a produção já realizada.')
