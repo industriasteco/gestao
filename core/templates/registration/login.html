@@ -1,1 +1,67 @@
-{% extends 'core/base.html' %}{% block content %}<section class="card"><h1>Acesso de homologação</h1><form method="post">{% csrf_token %}{{ form.as_p }}<button>Entrar</button></form><p>Primeira instalação? <a href="/primeiro-acesso/">Criar meu acesso</a></p></section>{% endblock %}
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173d37">
+  <title>Entrar · Teco e Nona Cecília</title>
+  <link rel="stylesheet" href="{% static 'core/auth/login.css' %}">
+  <script src="{% static 'core/auth/login.js' %}" defer></script>
+</head>
+<body>
+  <main class="login-shell">
+    <section class="brand-panel" aria-label="Panificadora do Teco e Restaurante Nona Cecília">
+      <p class="brand-eyebrow"><span aria-hidden="true"></span> GESTÃO INTEGRADA</p>
+      <div class="brand-stage">
+        <img src="{% static 'core/brand/teco-nona-branco-verde.png' %}" width="1448" height="1086" alt="Panificadora do Teco e Restaurante Nona Cecília" fetchpriority="high">
+      </div>
+      <div class="brand-copy">
+        <h2>Mais tempo para produzir.<br>Mais espaço para crescer.</h2>
+        <p>Pedidos, produção e gestão.<br>Seu negócio em um só lugar.</p>
+      </div>
+      <p class="brand-signature">TECO <span aria-hidden="true">&</span> NONA CECÍLIA</p>
+    </section>
+
+    <section class="login-panel" aria-labelledby="login-title">
+      <span class="environment">Ambiente de homologação</span>
+      <div class="login-content">
+        <p class="login-eyebrow">BEM-VINDO AO SEU ERP</p>
+        <h1 id="login-title">Acesse sua conta</h1>
+        <p class="intro">Entre com seu usuário e senha para continuar.</p>
+
+        {% for message in messages %}<p class="login-message" role="status">{{ message }}</p>{% endfor %}
+        {% if form.non_field_errors %}
+          <div class="login-error" role="alert">
+            <strong>Confira seus dados de acesso.</strong>
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+          </div>
+        {% endif %}
+
+        <form method="post" class="login-form">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="field">
+            <label for="id_username">Usuário</label>
+            <input id="id_username" name="username" type="text" value="{{ form.username.value|default_if_none:'' }}" maxlength="{{ form.username.field.max_length|default:150 }}" placeholder="Digite seu usuário" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus{% if form.username.errors %} aria-invalid="true" aria-describedby="username-errors"{% endif %}>
+            {% if form.username.errors %}<div class="field-errors" id="username-errors" role="alert">{{ form.username.errors }}</div>{% endif %}
+          </div>
+          <div class="field">
+            <label for="id_password">Senha</label>
+            <div class="password-field">
+              <input id="id_password" name="password" type="password" placeholder="Digite sua senha" autocomplete="current-password" required{% if form.password.errors %} aria-invalid="true" aria-describedby="password-errors"{% endif %}>
+              <button type="button" class="password-toggle" aria-controls="id_password" aria-pressed="false" aria-label="Mostrar senha" hidden>Mostrar</button>
+            </div>
+            {% if form.password.errors %}<div class="field-errors" id="password-errors" role="alert">{{ form.password.errors }}</div>{% endif %}
+          </div>
+          <button type="submit" class="submit-button">Entrar no sistema <span aria-hidden="true">→</span></button>
+        </form>
+
+        <p class="access-help">Precisa criar ou recuperar seu acesso?<br>Fale com o administrador do sistema.</p>
+        {% if setup_available %}<p class="setup-link"><a href="{% url 'first_access' %}">Configurar o primeiro acesso da instalação</a></p>{% endif %}
+      </div>
+      <footer class="login-footer">Panificadora do Teco <span aria-hidden="true">·</span> Restaurante Nona Cecília</footer>
+    </section>
+  </main>
+</body>
+</html>

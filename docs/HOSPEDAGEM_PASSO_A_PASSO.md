@@ -26,7 +26,7 @@ Os planos gratuitos podem mudar, suspender a aplicação e limitar uso. Confira 
 ## 3. Seu primeiro acesso
 
 1. Abra o endereço HTTPS fornecido pelo Render.
-2. Clique em **Criar meu acesso**.
+2. Na tela de login com o logo principal, clique em **Configurar o primeiro acesso da instalação**. Esse link aparece somente enquanto a chave SETUP_KEY estiver configurada e ainda não houver administrador ativo.
 3. Use a SETUP_KEY das configurações do Render na própria página do sistema; escolha seu nome de usuário e sua senha.
 4. A página só cria o primeiro administrador uma vez. Depois, use o login normal.
 5. Abra **Como usar → Preparar meus exemplos de teste**. Esse botão cria somente exemplos artificiais sem preços ou CNPJs inventados.

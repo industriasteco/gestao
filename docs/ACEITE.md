@@ -2,6 +2,8 @@
 
 Atualização gerencial atual: **135 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra e 17 cenários de propostas comerciais. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
 
+Tela de login atualizada: repetidos os três testes existentes de primeiro acesso, CSRF e escopo. No navegador: redirecionamento de entrada sem sessão, logo/arquivos estáticos, senha visível/oculta, mensagem de credenciais inválidas sem reapresentar a senha, autenticação com usuário temporário, retorno à página solicitada e logout. Larguras de 320, 390, 768 e 1440 pixels conferidas sem transbordamento. `check`, coleta dos arquivos estáticos e `diff --check` aprovados. Nenhuma migração ou mudança de senha existente.
+
 Execução final em PostgreSQL: **42 testes passaram; nenhum ignorado; nenhuma falha.** A suite usa dados artificiais e, onde disponíveis localmente, os CSVs privados reais em staging. No GitHub público, fontes privadas são substituídas por fixtures explicitamente artificiais para permitir reprodução dos testes sem expor clientes.
 
 | Critério | Evidência automatizada de homologação |

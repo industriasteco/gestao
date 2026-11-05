@@ -27,6 +27,8 @@ python3 -m venv .venv
 
 `seed_demo` cria somente cadastros e regras artificiais, sem preços ou CNPJ; é repetível. Na hospedagem, execute pela tela **Como usar**, pelo botão de demonstração. Não carrega dados privados que não estejam presentes localmente.
 
+A tela de entrada em `/accounts/login/` usa o logo principal branco/verde e layout próprio para computador e celular, com usuário, senha e botão mostrar/ocultar. A autenticação continua sendo a do Django, com CSRF e retorno à página solicitada. O link de configuração inicial aparece somente quando a instalação ainda pode criar seu primeiro administrador.
+
 Alternativa em containers: `docker compose up --build`. Migrations executadas pelo serviço web. No ambiente de nuvem com CA de proxy, construa com `docker build --secret id=proxy_ca,src=/etc/ssl/certs/ca-certificates.crt -t gestao-web .`. Preserve proxy/TLS; nunca desative verificações.
 
 Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Para hospedagem, configure DATABASE_URL, DJANGO_DEBUG=0, DJANGO_SECRET_KEY, SETUP_KEY e hosts. O Render Blueprint usa PostgreSQL externo com TLS verificado e Gunicorn; não cria banco pago. O Compose publica portas apenas em loopback.

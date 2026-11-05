@@ -2,6 +2,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth import login
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db import connection,transaction
@@ -9,6 +10,12 @@ from django.http import Http404,HttpResponse
 from django.shortcuts import render,redirect
 from django.utils.crypto import constant_time_compare
 from .models import Audit
+
+class ERPLoginView(LoginView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['setup_available'] = bool(settings.SETUP_KEY) and not User.objects.filter(is_superuser=True, is_active=True).exists()
+        return context
 
 class FirstAccessForm(UserCreationForm):
     setup_key=forms.CharField(label='Chave de primeiro acesso',widget=forms.PasswordInput)

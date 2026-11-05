@@ -7,8 +7,9 @@ from core import logistics_views as lg
 from core import statement_views as st
 from core import payables_views as ap
 from core import proposal_views as pr
-from core.access import first_access
+from core.access import first_access,ERPLoginView
 urlpatterns=[
+    path('accounts/login/',ERPLoginView.as_view(),name='login'),
     path('propostas/',pr.proposals,name='proposals'),
     path('propostas/nova/',pr.proposal_edit,name='proposal_new'),
     path('propostas/cabecalho/<uuid:pk>/',pr.proposal_profile,name='proposal_profile'),
