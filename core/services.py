@@ -5,6 +5,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from .models import *
+from .catalog import product_available
 
 def companies(user):
     return Company.objects.all() if user.is_superuser else Company.objects.filter(membership__user=user)
@@ -36,7 +37,7 @@ def prepare(user, day, automatic_only=False):
         exception=RuleException.objects.filter(rule=rule,date=day).first()
         if exception and exception.suspended:continue
         if not rule.client.active or not rule.product.active or not rule.company.active:continue
-        if rule.client.company_id!=rule.company_id or rule.product.company_id!=rule.company_id:raise ValidationError('Empresa incompatível')
+        if rule.client.company_id!=rule.company_id or not product_available(rule.product,rule.company):raise ValidationError('Empresa incompatível')
         prefix='operational' if rule.company.operational_enabled else 'planned'
         key=f'{prefix}:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.time}:{rule.shift}'
         groups[key].append((rule,exception))
@@ -56,7 +57,7 @@ def prepare(user, day, automatic_only=False):
             qty=exception.quantity if exception and exception.quantity is not None else rule.quantity
             lines[rule.product_id]=(rule.product,lines.get(rule.product_id,(None,Decimal(0)))[1]+qty)
             for extra in rule.extra_items.select_related('product').all():
-                if extra.product.company_id!=rule.company_id:raise ValidationError('Produto extra de outra empresa')
+                if not product_available(extra.product,rule.company):raise ValidationError('Produto extra indisponível para esta empresa')
                 lines[extra.product_id]=(extra.product,lines.get(extra.product_id,(None,Decimal(0)))[1]+extra.quantity)
         for product,qty in lines.values():
             OrderItem.objects.create(order=order,product=product,product_name=product.name,unit=product.unit,quantity=qty)
@@ -117,12 +118,17 @@ def prices_on(day):
 
 
 def price_for(company,client,product,day):
-    if product.company_id!=company.pk or client.company_id!=company.pk: raise ValidationError('Empresa incompatível')
-    prices=prices_on(day).filter(company=company,product=product)
-    selected=prices.filter(client=client)
-    if not selected.exists(): selected=prices.filter(client__isnull=True)
-    if selected.count()!=1: raise ValidationError('Preço ausente ou vigências sobrepostas')
-    return selected.get().amount
+    if not product_available(product,company) or (client and client.company_id!=company.pk):raise ValidationError('Empresa incompatível')
+    prices=prices_on(day).filter(product=product)
+    choices=[]
+    if client:choices.append(prices.filter(company=company,client=client))
+    choices.append(prices.filter(company=company,client__isnull=True))
+    if product.company_id!=company.pk:choices.append(prices.filter(company=product.company,client__isnull=True))
+    for selected in choices:
+        if not selected.exists():continue
+        if selected.count()!=1:raise ValidationError('Preço ausente ou vigências sobrepostas')
+        return selected.get().amount
+    raise ValidationError('Preço ausente ou vigências sobrepostas')
 
 def financial_operation(*args,**kwargs):
     raise ValidationError('Emissão, entrega financeira e fechamento bloqueados até homologação.')

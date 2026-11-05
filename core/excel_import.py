@@ -134,6 +134,7 @@ def inferred_patterns(analysis):
 @transaction.atomic
 def import_workbook(user, company, data, filename, start):
     from .services import authorize
+    from .catalog import available_products
     authorize(user, company, 'core.review_staging')
     if not user.is_superuser:
         from django.core.exceptions import PermissionDenied
@@ -159,7 +160,7 @@ def import_workbook(user, company, data, filename, start):
         for item in entry['items']:
             name = item['product']
             if name not in products:
-                matches = Product.objects.filter(company=company, name__iexact=name)
+                matches = available_products(company).filter(name__iexact=name)
                 if matches.count() > 1:
                     raise ValidationError(f'Cadastro duplicado de produto: {name}.')
                 products[name] = matches.first() or Product.objects.create(company=company, name=name)

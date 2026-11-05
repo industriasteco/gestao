@@ -6,6 +6,8 @@ from .models import Company,Client,Product,Recurrence,Order
 from .services import companies,prices_on
 from .receipt_layout import brand_code
 from .workflow import event
+from .catalog import available_products
+from django.db.models import Q,F
 
 
 def production_companies(user):
@@ -20,6 +22,7 @@ def production_orders(user):
 
 
 def company_checks(company):
+    products=available_products(company).filter(active=True)
     return [
         ('Empresa ativa',company.active,'/cadastros/empresas/'),
         ('Marca TECO ou NONA configurada',brand_code(company.code) in ('TECO','NONA'),f'/empresas/{company.pk}/'),
@@ -27,8 +30,8 @@ def company_checks(company):
         ('Razão social informada',bool(company.legal_name.strip()),f'/empresas/{company.pk}/'),
         ('Endereço e telefone da empresa informados',bool(company.address.strip() and company.phone.strip()),f'/empresas/{company.pk}/'),
         ('Ao menos um cliente ativo',Client.objects.filter(company=company,active=True).exists(),'/cadastros/clientes/'),
-        ('Ao menos um produto ativo',Product.objects.filter(company=company,active=True).exists(),'/cadastros/produtos/'),
-        ('Preço de venda cadastrado para começar',prices_on(timezone.localdate()).filter(company=company,product__active=True).exists(),'/cadastros/precos/'),
+        ('Ao menos um produto ativo',products.exists(),'/cadastros/produtos/'),
+        ('Preço de venda cadastrado para começar',prices_on(timezone.localdate()).filter(product__in=products).filter(Q(company=company)|Q(company_id=F('product__company_id'),client__isnull=True)).exists(),'/cadastros/precos/'),
     ]
 
 

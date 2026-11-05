@@ -1,6 +1,6 @@
 # Evidências de homologação automatizada — etapa 2
 
-Atualização gerencial atual: **174 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra, 17 cenários de propostas comerciais e 14 cenários de preços/cadastros durante o pedido e nove de dias recorrentes/preços do cliente. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
+Atualização gerencial atual: **185 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra, 17 cenários de propostas comerciais e 14 cenários de preços/cadastros durante o pedido e nove de dias recorrentes/preços do cliente. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
 
 Tela de login atualizada: repetidos os três testes existentes de primeiro acesso, CSRF e escopo. No navegador: redirecionamento de entrada sem sessão, logo/arquivos estáticos, senha visível/oculta, mensagem de credenciais inválidas sem reapresentar a senha, autenticação com usuário temporário, retorno à página solicitada e logout. Larguras de 320, 390, 768 e 1440 pixels conferidas sem transbordamento. `check`, coleta dos arquivos estáticos e `diff --check` aprovados. Nenhuma migração ou mudança de senha existente.
 
@@ -45,3 +45,6 @@ Dias recorrentes/preços no cliente: testes cobrem cadastro comum e rápido com 
 
 
 Início operacional: 16 cenários adicionais aprovados de retirada de pré-cadastros, ativação por empresa, separação entre pedido operacional e teste, emissão comum/IBIS não fiscal, fechamento/indicadores, romaneio/malote, perfil Produção e datas de lançamento/entrega/produção. O conjunto completo passou com **174 testes**. As restrições originais da etapa 2 refletem a versão anterior; a ativação atual está descrita em [Começar hoje](COMECE_HOJE.md).
+
+
+Catálogo compartilhado: 11 novos cenários aprovados para disponibilidade das duas marcas sem cópias, produtos novos no cadastro comum/rápido, prioridade de preços, ativação com catálogo da outra marca, preços do cliente, rotina automática, emissão real não fiscal com a marca da venda e PDF preservado, proposta, produção/custo e proteção de clientes/condições de outra empresa. O conjunto completo passou com **185 testes**, sem ignorados. A disponibilidade compartilhada não cria pedidos, preços ou rotinas por conta própria e não exige nova migration.

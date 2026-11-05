@@ -16,9 +16,9 @@ Em **Cadastros → Empresas**, confira os dados próprios de cada emissora: CNPJ
 
 ## 4. Produtos, clientes e preços
 
-Em **Produtos**, confirme empresa, nome e unidade do item (UN, KG, pacote etc.). Preencha custo de produção por unidade e valor de venda padrão. Você pode alterar o preço sem informar datas.
+Em **Produtos**, confira nome e unidade do item (UN, KG, pacote etc.). O catálogo é compartilhado: cadastre cada produto uma vez para usá-lo tanto na TECO quanto na NONA. Isso também vale para novos produtos cadastrados durante o pedido. Preencha custo de produção por unidade e valor de venda padrão, disponível nas duas empresas. Você pode alterar o preço sem informar datas.
 
-Na ficha de cada cliente, confira a empresa, nome/razão social, CPF/CNPJ quando aplicável, endereço de entrega e contato. Marque os dias recorrentes e informe os preços negociados por produto. Os valores do cliente têm prioridade sobre o preço padrão. Exigência de OC pode ser marcada no cliente; nesse caso, preencha a referência antes de imprimir.
+Na ficha de cada cliente, confira a empresa, nome/razão social, CPF/CNPJ quando aplicável, endereço de entrega e contato. Marque os dias recorrentes e informe os preços negociados por produto. Os valores do cliente têm prioridade sobre uma condição específica da empresa e sobre o preço padrão do catálogo. A empresa escolhida no pedido determina a marca da notinha e o faturamento. Exigência de OC pode ser marcada no cliente; nesse caso, preencha a referência antes de imprimir.
 
 Para ativar uma empresa, basta ter ao menos um cliente ativo, um produto ativo e um preço para começar. Complete os demais itens conforme lançar seus pedidos; um produto usado sem preço bloqueia a impressão, em vez de presumir um valor.
 

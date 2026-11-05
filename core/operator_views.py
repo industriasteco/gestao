@@ -16,6 +16,7 @@ from .management_services import set_current_price
 from .forms import *
 from . import workflow
 from .client_setup import client_prices_data,save_client_prices,save_recurring_items
+from .catalog import products_for_user,product_available,product_catalog_label,visible_prices,price_scope_label
 
 @login_required
 def guide(request):return render(request,'core/guide.html')
@@ -55,14 +56,18 @@ def records(request,kind):
     else:form=form_type(user=request.user)
     rows=companies(request.user) if model is Company else model.objects.filter(company__in=companies(request.user))
     if kind=='recorrencias':rows=rows.filter(archived=False)
+    if kind=='produtos':rows=products_for_user(request.user)
+    if kind=='precos':rows=visible_prices(request.user)
     today=timezone.localdate()
     price_history=None
     if kind=='precos':
         price_history=rows.select_related('product','client','company').order_by('-valid_from','product__name')
-        rows=prices_on(today).filter(company__in=companies(request.user)).select_related('product','client','company').order_by('company__name','product__name','client__name')
+        rows=rows.filter(pk__in=prices_on(today).values('pk')).select_related('product__company','client','company').order_by('company__name','product__name','client__name')
+        for row in rows:row.scope_label=price_scope_label(row)
     if kind=='produtos':
         for row in rows:
-            current=prices_on(today).filter(product=row,client__isnull=True)
+            row.catalog_label=product_catalog_label(row)
+            current=prices_on(today).filter(company=row.company,product=row,client__isnull=True)
             row.current_price=current.first().amount if current.count()==1 else None
             row.gross_profit=row.current_price-row.production_cost if row.current_price is not None and row.production_cost is not None else None
     if kind=='clientes':
@@ -157,7 +162,7 @@ def new_order(request):
             company=form.cleaned_data['company'];authorize(request.user,company,'core.prepare_day')
             lines=[item.cleaned_data for item in items if item.cleaned_data]
             if not lines or not any(line['quantity']>0 for line in lines):raise ValidationError('Inclua ao menos um item com quantidade positiva.')
-            if any(line['product'].company_id!=company.pk for line in lines):raise ValidationError('Todos os produtos devem pertencer à empresa do pedido.')
+            if any(not product_available(line['product'],company) for line in lines):raise ValidationError('Há produto indisponível para a empresa do pedido.')
             prices={}
             for line in lines:
                 amount=line.get('client_price')

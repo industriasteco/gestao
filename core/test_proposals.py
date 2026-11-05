@@ -138,13 +138,14 @@ class ProposalsTests(TestCase):
         self.assertEqual(self.client.get(f'/propostas/{proposal.pk}/pdf/').status_code,404)
         self.assertEqual(self.client.get(f'/propostas/cabecalho/{self.nona.pk}/').status_code,403)
 
-    def test_catalogue_product_and_client_cannot_cross_companies(self):
+    def test_shared_catalogue_product_is_allowed_but_client_remains_in_own_company(self):
         other=Product.objects.create(company=self.teco,name='Produto de outra empresa')
-        with self.assertRaises(ValidationError):save_proposal(self.user,self.values(),[dict(product=other,description='',quantity=Decimal(1),unit='',unit_price=Decimal(1))],uuid.uuid4())
+        proposal=save_proposal(self.user,self.values(),[dict(product=other,description='',quantity=Decimal(1),unit='',unit_price=Decimal(1))],uuid.uuid4())
+        self.assertEqual(proposal.items.get().product_id,other.pk)
         other_client=Client.objects.create(company=self.teco,name='Cliente outra empresa')
         values=self.values();values['client']=other_client
         with self.assertRaises(ValidationError):save_proposal(self.user,values,self.lines(),uuid.uuid4())
-        self.assertEqual(CommercialProposal.objects.count(),0)
+        self.assertEqual(CommercialProposal.objects.count(),1)
 
     def test_draft_edit_retains_date_and_validity(self):
         values=self.values();values['issued_on']=self.today-timedelta(days=5);values['valid_days']=30

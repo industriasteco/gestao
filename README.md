@@ -43,7 +43,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-174 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+185 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -57,6 +57,8 @@ Este repositório é público. As fontes privadas (`reference/`, planilhas, CSVs
 ## Evolução gerencial — novembro de 2026
 
 Página inicial com painel, filtros por período/empresa, faturamento e rankings de vendas reais emitidas, vencimentos em atraso e alerta de estoque. Pedidos de teste não entram no faturamento. Após ativar a empresa, pedidos operacionais emitidos alimentam os indicadores comerciais; pedidos de teste ficam fora desses totais.
+
+TECO e NONA usam um catálogo compartilhado: os produtos existentes e novos ficam disponíveis nas duas empresas sem duplicação, inclusive em pedidos, preços negociados, rotinas, produção realizada e propostas. A empresa do pedido determina a marca da notinha e o faturamento. O preço padrão cadastrado no produto vale para ambas; uma condição específica da empresa tem prioridade sobre esse padrão, e o preço do cliente tem prioridade sobre os dois. Clientes, pedidos e financeiro continuam vinculados à empresa correspondente.
 
 Produtos permitem cadastrar e alterar o preço padrão diretamente no formulário, sem datas. A ficha do cliente reúne observações, condições negociadas por produto, rotinas, pedidos novos e contas. A aba **Preços** oferece **Alterar preço** em cada condição. O valor entra em uso imediatamente e fica sem prazo de término; trocas no mesmo dia são permitidas e o histórico é registrado automaticamente. Documentos emitidos preservam seus valores. Contas a receber e recebimentos parciais têm registro manual confirmado e auditoria; não há envio automático de cobrança, conciliação bancária ou criação de dívida pela planilha.
 

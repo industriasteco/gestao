@@ -7,11 +7,12 @@ from .models import Company,Recurrence
 from .services import authorize
 from .management_services import set_current_price
 from .workflow import event
+from .catalog import product_available
 
 
 def client_prices_data(formset,company):
     rows=[form.cleaned_data for form in formset if form.cleaned_data and not form.cleaned_data.get('DELETE')]
-    if any(row['product'].company_id!=company.pk for row in rows):raise ValidationError('Os preços devem ser de produtos da empresa do cliente.')
+    if any(not product_available(row['product'],company) for row in rows):raise ValidationError('Há produto indisponível para a empresa do cliente.')
     return rows
 
 
@@ -49,7 +50,7 @@ def save_recurring_items(user,client,lines,slot,time,shift,notes='',origin=None,
     grouped={}
     for line in lines:
         product=line['product'];quantity=line['quantity']
-        if product.company_id!=client.company_id or not product.active:raise ValidationError('Produto inativo ou de outra empresa.')
+        if not product_available(product,client.company) or not product.active:raise ValidationError('Produto inativo ou indisponível para esta empresa.')
         if not quantity.is_finite() or quantity<=0:raise ValidationError('Informe quantidades positivas para a rotina.')
         grouped.setdefault(product.pk,[product,Decimal(0)])[1]+=quantity
     if not grouped or len(grouped)>100:raise ValidationError('Informe de 1 a 100 produtos recorrentes.')

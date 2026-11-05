@@ -77,8 +77,15 @@ As novas rotinas autorizadas são preparadas quando um usuário com permissão a
 
 ## Início da operação gerencial
 
-Atualização atual: **174 testes**, sem ignorados. [Como começar hoje](COMECE_HOJE.md). Migrations `0020`–`0024` acrescentam ativação por empresa, retirada das rotinas pré-cadastradas, permissão de preparar produção e datas separadas de lançamento/entrega/produção. A retirada local arquivou 145 rotinas, preservando 46 clientes, 20 produtos e zero pedidos importados. No site, a limpeza é aplicada ao publicar a atualização; rotinas novas confirmadas são preservadas.
+Versão de início operacional: **174 testes**, sem ignorados. [Como começar hoje](COMECE_HOJE.md). Migrations `0020`–`0024` acrescentam ativação por empresa, retirada das rotinas pré-cadastradas, permissão de preparar produção e datas separadas de lançamento/entrega/produção. A retirada local arquivou 145 rotinas, preservando 46 clientes, 20 produtos e zero pedidos importados. No site, a limpeza é aplicada ao publicar a atualização; rotinas novas confirmadas são preservadas.
 
 A tela Começar operação exige os dados próprios da empresa e ao menos um cliente, produto e preço para ativar. Novos pedidos passam a ser operacionais; exemplos anteriores ficam fora do planejamento operacional. Comprovantes de entrega não fiscais, fechamento por período e malotes funcionam com pedidos operacionais. A emissão própria de NF-e/NFC-e e integrações bancárias permanecem fora desta entrega. As restrições de homologação descritas nas etapas históricas acima correspondem às versões anteriores.
 
 Dezesseis novos testes cobrem retirada sem exclusão de dados, repetição segura do reset, critérios de ativação, permissões, pedido de amanhã lançado hoje, impressão comum/IBIS, separação de testes, fechamento, romaneio/malote, preparo pelo colaborador, bloqueio de entrega futura e produção física de hoje vinculada à programação de amanhã.
+
+
+## Catálogo compartilhado TECO e NONA
+
+Todos os produtos das duas marcas, inclusive novos, podem ser usados por ambas sem copiar registros ou mudar a origem do cadastro. Formulários, pedidos, rotinas/itens extras, preços, produção realizada e propostas usam a mesma regra. O preço padrão do produto serve às duas marcas; condição da empresa da venda e negociação do cliente têm prioridade, nessa ordem de especificidade. A marca e os dados das notinhas vêm da empresa do pedido. Documentos emitidos continuam congelados. Clientes e informações financeiras mantêm o escopo da empresa.
+
+**185 testes** PostgreSQL passaram, sem ignorados, incluindo 11 novos cenários de catálogo, preços, documentos e isolamento. Conferência em navegador com pedido NONA/produto TECO, preço próprio do cliente, cadastro rápido e celular; PDF gerado apenas com dados artificiais no banco de demonstração. Sem nova migration. A base principal mantém 46 clientes, 20 produtos disponíveis para ambas e zero pedidos/rotinas ativas.

@@ -4,6 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from .models import *
 from .services import companies
+from .catalog import products_for_user,available_products,product_available
 
 WEEKDAYS=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'Sábado'),(7,'Domingo')]
 
@@ -13,14 +14,17 @@ class ScopedForm(forms.ModelForm):
         self.user=user
         for name,field in self.fields.items():
             if name=='company':field.queryset=companies(user)
-            elif name in ('client','product','supplier'):field.queryset=field.queryset.filter(company__in=companies(user))
+            elif name=='product':field.queryset=products_for_user(user)
+            elif name in ('client','supplier'):field.queryset=field.queryset.filter(company__in=companies(user))
         for field in self.fields.values():
             if isinstance(field,forms.DateField):field.widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'})
     def clean(self):
         data=super().clean();co=data.get('company')
         for field in ('client','product','supplier'):
             linked=data.get(field)
-            if linked and co and linked.company_id!=co.pk:raise ValidationError('Selecione cadastros da mesma empresa.')
+            if linked and co:
+                valid=product_available(linked,co) if field=='product' else linked.company_id==co.pk
+                if not valid:raise ValidationError('Selecione cadastros disponíveis para a empresa.')
         return data
 
 class CompanyForm(ScopedForm):
@@ -40,7 +44,8 @@ class ProductForm(ScopedForm):
     production_cost=forms.DecimalField(label='Custo de produção por unidade (R$)',required=False,min_value=0,max_digits=15,decimal_places=4)
     class Meta:
         model=Product;fields=['company','name','unit','production_cost']
-        labels={'company':'Empresa','name':'Nome do produto','unit':'Unidade (UN, KG...)','production_cost':'Custo de produção por unidade (R$)'}
+        help_texts={'company':'Os produtos da TECO e da NONA ficam disponíveis nas duas empresas automaticamente.'}
+        labels={'company':'Empresa do cadastro','name':'Nome do produto','unit':'Unidade (UN, KG...)','production_cost':'Custo de produção por unidade (R$)'}
 
 class PriceForm(ScopedForm):
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
@@ -97,7 +102,7 @@ class ManualItemForm(forms.Form):
     client_price=forms.DecimalField(label='Preço negociado para este cliente (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4,help_text='Ao salvar o pedido, este valor fica cadastrado para o cliente. Em branco, mantém o preço já configurado.')
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
-        self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True)
+        self.fields['product'].queryset=products_for_user(user).filter(active=True)
         if not user.is_superuser:self.fields.pop('client_price')
 
 class ClientPriceItemForm(forms.Form):
@@ -105,7 +110,7 @@ class ClientPriceItemForm(forms.Form):
     amount=forms.DecimalField(label='Preço para este cliente (R$)',min_value=0,max_digits=15,decimal_places=4)
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
-        self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True).order_by('name')
+        self.fields['product'].queryset=products_for_user(user).filter(active=True).order_by('name')
 
 class ClientPricesBaseFormSet(forms.BaseFormSet):
     def clean(self):
@@ -133,14 +138,14 @@ class ClientRoutineForm(forms.Form):
     notes=forms.CharField(label='Instruções para este pedido recorrente',required=False,max_length=2000,widget=forms.Textarea(attrs={'rows':3}))
     def __init__(self,*args,company,**kwargs):
         super().__init__(*args,**kwargs)
-        self.fields['product'].queryset=Product.objects.filter(company=company,active=True).order_by('name')
+        self.fields['product'].queryset=available_products(company).filter(active=True).order_by('name')
 
 class InlinePriceForm(forms.Form):
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')
     amount = forms.DecimalField(label='Valor negociado (R$)', min_value=0, max_digits=15, decimal_places=4)
     def __init__(self, *args, company, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['product'].queryset = Product.objects.filter(company=company, active=True)
+        self.fields['product'].queryset = available_products(company).filter(active=True)
 
 class ReceivableForm(ScopedForm):
     class Meta:
@@ -357,7 +362,7 @@ class ProposalItemForm(forms.Form):
     unit_price=forms.DecimalField(label='Valor unitário (R$)',min_value=0,max_digits=15,decimal_places=4,required=False,help_text='Se escolher um produto e deixar em branco, usamos o preço vigente cadastrado.')
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
-        self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True).order_by('company__code','name')
+        self.fields['product'].queryset=products_for_user(user).filter(active=True).order_by('company__code','name')
     def clean(self):
         data=super().clean()
         if not data.get('product') and not data.get('description'):self.add_error('description','Descreva o serviço/produto ou selecione um item do catálogo.')

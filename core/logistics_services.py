@@ -7,13 +7,14 @@ from .models import (Company, ProductionRecord, DeliveryRoute, Order, DeliveryMa
 from .services import authorize, price_for
 from .workflow import event
 from .management_services import receive
+from .catalog import product_available
 
 
 @transaction.atomic
 def register_production(user, record):
     authorize(user,record.company,'core.add_productionrecord')
     Company.objects.select_for_update().get(pk=record.company_id)
-    if record.product.company_id!=record.company_id or record.date>timezone.localdate():
+    if not product_available(record.product,record.company) or record.date>timezone.localdate():
         raise ValidationError('Confira a empresa do produto e a data da produção.')
     if record.losses and not record.notes.strip():
         raise ValidationError('Informe o motivo das perdas.')

@@ -17,6 +17,7 @@ from .management_services import balances, receive, move_stock, set_current_pric
 from .workflow import event
 from .client_setup import sync_client_days,save_recurring_items
 from .operations import production_orders
+from .catalog import products_for_user,catalog_company_ids,visible_prices,product_catalog_label,price_scope_label
 
 
 def admin_only(user):
@@ -81,7 +82,7 @@ def dashboard(request):
         rules=Recurrence.objects.filter(company__in=scope,active=True).count(),
         units=list(items.values('unit').annotate(quantity=Sum('quantity'))),
         test_orders=orders.filter(synthetic=True).count(),
-        missing_costs=Product.objects.filter(company__in=scope,active=True,production_cost__isnull=True).count(),
+        missing_costs=Product.objects.filter(company_id__in=catalog_company_ids(scope),active=True,production_cost__isnull=True).count(),
         costed_loss=sum((r.losses*r.cost_snapshot for r in ProductionRecord.objects.filter(company__in=scope,date__range=(start,end),cost_snapshot__isnull=False)),Decimal(0)),
         uncosted_production=ProductionRecord.objects.filter(company__in=scope,date__range=(start,end),cost_snapshot__isnull=True).count(),
         produced=ProductionRecord.objects.filter(company__in=scope,date__range=(start,end)).values('unit').annotate(quantity=Sum('quantity'),losses=Sum('losses')),
@@ -142,8 +143,8 @@ def client_detail(request,pk):
 
 @login_required
 def product_detail(request,pk):
-    product=get_object_or_404(Product,pk=pk,company__in=companies(request.user))
-    current=prices_on(timezone.localdate()).filter(product=product,client__isnull=True)
+    product=get_object_or_404(products_for_user(request.user),pk=pk)
+    current=prices_on(timezone.localdate()).filter(company=product.company,product=product,client__isnull=True)
     sale=current.first().amount if current.count()==1 else None
     form=ProductForm(request.POST or None,instance=product,user=request.user,initial={'amount':sale})
     form.fields['company'].disabled=True
@@ -160,8 +161,8 @@ def product_detail(request,pk):
             except ValidationError as exc:form.add_error(None,exc)
     profit=sale-product.production_cost if sale is not None and product.production_cost is not None else None
     margin=(profit/sale*100) if profit is not None and sale else None
-    return render(request,'core/product_detail.html',dict(product=product,form=form,sale=sale,profit=profit,margin=margin,
-        prices=Price.objects.filter(product=product).select_related('client').order_by('-valid_from'),today=timezone.localdate()))
+    return render(request,'core/product_detail.html',dict(product=product,catalog_label=product_catalog_label(product),form=form,sale=sale,profit=profit,margin=margin,
+        prices=visible_prices(request.user).filter(product=product).select_related('client','company').order_by('-valid_from'),today=timezone.localdate()))
 
 
 @login_required
@@ -177,7 +178,7 @@ def price_edit(request,pk):
             messages.success(request,'Preço atualizado. O novo valor fica ativo até você alterá-lo novamente.')
             return redirect('records',kind='precos')
         except ValidationError as exc:form.add_error(None,exc)
-    return render(request,'core/price_edit.html',{'price':price,'amount':amount,'form':form})
+    return render(request,'core/price_edit.html',{'price':price,'scope_label':price_scope_label(price),'amount':amount,'form':form})
 
 
 @login_required

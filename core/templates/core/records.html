@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">CADASTROS</p>
     <h1>{% if kind == 'produtos' %}Produtos e preços{% elif kind == 'precos' %}Preços dos produtos{% elif kind == 'clientes' %}Seus clientes{% else %}{{ kind|capfirst }}{% endif %}</h1>
-    <p class="muted">{% if kind == 'produtos' %}Seu catálogo com o preço padrão de cada item. Condições especiais ficam no cliente.{% elif kind == 'precos' %}Altere os valores quando precisar. O preço fica ativo até a próxima alteração.{% elif kind == 'clientes' %}Dados, preços negociados, rotinas e situação financeira em um só lugar.{% else %}Mantenha as informações da sua operação atualizadas.{% endif %}</p>
+    <p class="muted">{% if kind == 'produtos' %}Catálogo compartilhado entre TECO e NONA. Cadastre cada produto uma vez para vender pelas duas empresas. Condições especiais ficam no cliente.{% elif kind == 'precos' %}Altere os valores quando precisar. O preço fica ativo até a próxima alteração.{% elif kind == 'clientes' %}Dados, preços negociados, rotinas e situação financeira em um só lugar.{% else %}Mantenha as informações da sua operação atualizadas.{% endif %}</p>
   </div>
   {% if user.is_superuser %}<a class="button" href="#novo">＋ {% if kind == 'precos' %}Definir preço{% else %}Novo cadastro{% endif %}</a>{% endif %}
 </div>
@@ -18,7 +18,7 @@
 <section class="card">
   <table>
     <thead><tr>
-      <th>Empresa</th>
+      <th>{% if kind == 'produtos' %}Disponível para{% else %}Empresa{% endif %}</th>
       <th>{% if kind == 'clientes' %}Cliente{% elif kind == 'produtos' or kind == 'precos' %}Produto{% else %}Cadastro{% endif %}</th>
       <th>{% if kind == 'precos' %}Condição{% else %}Informação{% endif %}</th>
       {% if kind == 'precos' %}<th>Preço de venda atual</th>{% if user.is_superuser %}<th></th>{% endif %}{% endif %}
@@ -26,7 +26,7 @@
     </tr></thead>
     <tbody>
       {% for row in rows %}<tr>
-        <td>{% if kind == 'empresas' %}{{ row.code }}{% else %}{{ row.company }}{% endif %}</td>
+        <td>{% if kind == 'empresas' %}{{ row.code }}{% elif kind == 'produtos' %}{{ row.catalog_label }}{% else %}{{ row.company }}{% endif %}</td>
         <td>
           {% if kind == 'clientes' %}<a href="{% url 'client_detail' row.pk %}"><strong>{{ row.name }}</strong></a>
           {% elif kind == 'produtos' %}<a href="{% url 'product_detail' row.pk %}"><strong>{{ row.name }}</strong></a>
@@ -36,7 +36,7 @@
         </td>
         <td>
           {% if kind == 'empresas' %}CNPJ: {{ row.cnpj|default:'PENDENTE' }}
-          {% elif kind == 'precos' %}{{ row.client|default:'Preço padrão' }}
+          {% elif kind == 'precos' %}{{ row.scope_label }}
           {% elif kind == 'recorrencias' %}{{ row.client }} · {{ row.quantity }} · {{ row.shift }} ·
             {% if row.active %}<span class="tag">Ativa</span>{% else %}<span class="tag neutral">Inativa</span>
               {% if user.is_superuser %}<form method="post">{% csrf_token %}<input type="hidden" name="rule" value="{{ row.pk }}"><input name="reason" required placeholder="Motivo da autorização"><button name="action" value="activate">Autorizar ativação</button></form>{% endif %}
@@ -53,8 +53,8 @@
 {% if user.is_superuser %}
 <section class="card" id="novo">
   <h2>{% if kind == 'precos' %}Definir ou atualizar preço{% else %}Novo cadastro{% endif %}</h2>
-  {% if kind == 'produtos' %}<p class="subtitle">Informe o preço padrão aqui. Você também pode deixá-lo pendente e preencher depois.</p>{% endif %}
-  {% if kind == 'precos' %}<p class="subtitle">Escolha o produto, informe o valor e salve. Deixe o cliente vazio para alterar o preço padrão, ou selecione um cliente para definir seu valor negociado. O histórico é registrado automaticamente.</p>{% endif %}
+  {% if kind == 'produtos' %}<p class="subtitle">O produto e seu preço padrão ficam disponíveis para TECO e NONA. Você também pode deixar o preço pendente e preencher depois.</p>{% endif %}
+  {% if kind == 'precos' %}<p class="subtitle">O preço cadastrado no produto é o padrão do catálogo. Aqui você pode definir um valor para a empresa selecionada ou, escolhendo um cliente, um preço negociado. O preço do cliente tem prioridade. O histórico é registrado automaticamente.</p>{% endif %}
   {% if kind == 'recorrencias' %}<p>Nova regra será salva desativada para sua conferência.</p>{% endif %}
   <form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}{% if kind == 'clientes' %}{% include 'core/client_prices_fields.html' %}{% endif %}<button>{% if kind == 'precos' %}Salvar preço{% else %}Salvar cadastro{% endif %}</button></form>
 </section>

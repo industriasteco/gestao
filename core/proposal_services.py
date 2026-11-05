@@ -5,7 +5,8 @@ from decimal import Decimal,ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import Company,CommercialProposal,ProposalItem,ProposalProfile,Document
-from .services import authorize,prices_on
+from .services import authorize,price_for
+from .catalog import product_available
 from .receipt_layout import brand_code
 from .workflow import event
 
@@ -38,14 +39,11 @@ def resolve_lines(company,client,day,lines):
         product=row.get('product');description=row.get('description','').strip();unit=row.get('unit','').strip()
         amount=row.get('unit_price');quantity=row['quantity']
         if product:
-            if product.company_id!=company.pk or not product.active:raise ValidationError('Produto inativo ou de outra empresa.')
+            if not product_available(product,company) or not product.active:raise ValidationError('Produto inativo ou indisponível para esta empresa.')
             description=description or product.name;unit=unit or product.unit
             if amount is None:
-                prices=prices_on(day).filter(company=company,product=product)
-                special=prices.filter(client=client) if client else prices.none()
-                selected=special if special.exists() else prices.filter(client__isnull=True)
-                if selected.count()!=1:raise ValidationError('Preço ausente ou sobreposto. Informe o valor unitário negociado para cada item.')
-                amount=selected.get().amount
+                try:amount=price_for(company,client,product,day)
+                except ValidationError:raise ValidationError('Preço ausente ou sobreposto. Informe o valor unitário negociado para cada item.')
         if not description or len(description)>500:raise ValidationError('Informe a descrição do serviço ou produto, com até 500 caracteres.')
         if amount is None:raise ValidationError('Informe o valor unitário dos itens que não estão no catálogo.')
         if not quantity.is_finite() or quantity<=0 or not amount.is_finite() or amount<0:raise ValidationError('Confira quantidades e preços dos itens.')
