@@ -7,6 +7,7 @@ from .models import Membership, Audit
 from .services import companies
 
 ROLES={
+    'COMERCIAL':('Comercial',['view_client','view_product','view_price','view_order','view_commercialproposal','add_commercialproposal','change_commercialproposal']),
     'PRODUCAO':('Produção',['view_order','view_product','view_client','check_production','add_productionrecord','view_productionrecord']),
     'ENTREGA':('Entregas',['view_order','view_client','view_deliverymanifest','view_manifestline','change_manifestline','confirm_delivery','view_deliveryroute','view_driver']),
     'FINANCEIRO':('Financeiro',['view_order','view_client','view_product','view_price','view_receivable','add_receivable','change_receivable','view_payment','add_payment','add_cashbag','view_cashbag','view_deliverymanifest','view_manifestline','view_clientstatement','add_clientstatement','change_clientstatement','view_supplier','add_supplier','change_supplier','view_purchaseinvoice','add_purchaseinvoice','change_purchaseinvoice','view_payable','add_payable','change_payable','view_disbursement','add_disbursement']),

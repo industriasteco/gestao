@@ -446,3 +446,60 @@ class Disbursement(Entity):
     class Meta:
         constraints = [models.CheckConstraint(condition=Q(amount__gt=0),name='disbursement_positive'),
                        models.UniqueConstraint(fields=['payable','reference'],name='disbursement_reference')]
+
+
+class ProposalProfile(Entity):
+    company = models.OneToOneField(Company, on_delete=models.PROTECT, related_name='proposal_profile')
+    display_name = models.CharField(max_length=200, blank=True)
+    subtitle = models.CharField(max_length=100, blank=True)
+    legal_name = models.CharField(max_length=200, blank=True)
+    tax_id = models.CharField(max_length=14, blank=True, validators=[RegexValidator(r'^\d{14}$', 'Informe o CNPJ com 14 dígitos ou deixe pendente.')])
+    address = models.TextField(blank=True)
+    phone = models.CharField(max_length=100, blank=True)
+    email = models.EmailField(blank=True)
+    responsible = models.CharField(max_length=200, blank=True)
+    source_filename = models.CharField(max_length=200, blank=True)
+    source_sha256 = models.CharField(max_length=64, blank=True)
+
+
+class CommercialProposal(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, null=True, blank=True)
+    number = models.CharField(max_length=50, unique=True)
+    title = models.CharField(max_length=200)
+    summary = models.TextField(blank=True, max_length=2000)
+    issued_on = models.DateField()
+    valid_days = models.PositiveSmallIntegerField(default=60)
+    customer_name = models.CharField(max_length=200)
+    customer_tax_id = models.CharField(max_length=14, blank=True, validators=[RegexValidator(r'^(?:\d{11}|\d{14})$', 'Informe CPF/CNPJ somente com números.')])
+    customer_address = models.TextField(blank=True, max_length=1500)
+    included_items = models.TextField(blank=True, max_length=6000)
+    conditions = models.TextField(blank=True, max_length=3000)
+    notes = models.TextField(blank=True, max_length=3000)
+    responsible = models.CharField(max_length=200)
+    total = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    status = models.CharField(max_length=15, default='RASCUNHO', choices=[('RASCUNHO','Rascunho'),('GERADA','PDF gerado'),('ENVIADA','Enviada ao cliente'),('APROVADA','Aprovada pelo cliente'),('RECUSADA','Recusada pelo cliente'),('CANCELADA','Cancelada')])
+    document = models.OneToOneField(Document, on_delete=models.PROTECT, null=True, blank=True)
+    snapshot = models.JSONField(default=dict, blank=True)
+    previous = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='revisions')
+    evidence = models.TextField(blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(valid_days__gte=1)&Q(valid_days__lte=3650),name='proposal_validity'),
+                       models.CheckConstraint(condition=Q(total__gte=0),name='proposal_positive_total')]
+
+
+class ProposalItem(Entity):
+    proposal = models.ForeignKey(CommercialProposal, on_delete=models.CASCADE, related_name='items')
+    sequence = models.PositiveIntegerField()
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True)
+    description = models.CharField(max_length=500)
+    quantity = models.DecimalField(max_digits=15, decimal_places=3)
+    unit = models.CharField(max_length=20, default='UN')
+    unit_price = models.DecimalField(max_digits=15, decimal_places=4)
+    class Meta:
+        ordering=['sequence']
+        constraints = [models.CheckConstraint(condition=Q(quantity__gt=0)&Q(unit_price__gte=0),name='proposal_item_values'),
+                       models.UniqueConstraint(fields=['proposal','sequence'],name='proposal_item_sequence')]

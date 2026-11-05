@@ -12,6 +12,7 @@
 <a href="/producao/realizada/" class="{% if '/producao/' in request.path %}active{% endif %}"><span class="nav-icon">▧</span>Produção realizada</a>
 <a href="/cadastros/clientes/" class="{% if '/clientes/' in request.path %}active{% endif %}"><span class="nav-icon">♧</span>Clientes</a>
 <a href="/cadastros/produtos/" class="{% if '/produtos/' in request.path %}active{% endif %}"><span class="nav-icon">◇</span>Produtos e preços</a>
+{% if perms.core.view_commercialproposal %}<a href="/propostas/" class="{% if '/propostas/' in request.path %}active{% endif %}"><span class="nav-icon">▧</span>Propostas comerciais</a>{% endif %}
 <a href="/rotinas/" class="{% if '/rotinas/' in request.path %}active{% endif %}"><span class="nav-icon">↻</span>Rotinas de compra</a>
 {% if perms.core.view_receivable %}<a href="/financeiro/" class="{% if '/financeiro/' in request.path %}active{% endif %}"><span class="nav-icon">＄</span>Contas a receber</a>{% endif %}
 {% if perms.core.view_payable %}<a href="/contas-a-pagar/" class="{% if '/contas-a-pagar/' in request.path %}active{% endif %}"><span class="nav-icon">↗</span>Contas a pagar</a>{% endif %}

@@ -40,7 +40,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-118 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+135 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -87,7 +87,7 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0016`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0017`.
 
 
 ### Contas a pagar e XML de compras
@@ -102,3 +102,10 @@ O objetivo fiscal confirmado pelo usuário é substituir os emissores atuais por
 ### Ordem de compra do cliente
 
 Informe a OC no pedido, antes da emissão, ou no fechamento por período quando a referência chegar apenas no faturamento mensal. As notinhas, romaneios, PDF de fechamento e CSV aprovado preservam a referência. A OC do fechamento preenche apenas pedidos sem OC, sem substituir referências próprias dos pedidos. O cliente pode ser configurado para exigir OC antes de emitir a notinha. Documentos já emitidos não são alterados.
+
+
+### Propostas comerciais
+
+**Propostas comerciais → Nova proposta** gera PDF A4 seguindo os blocos do DOCX fornecido: destinatário, descrição/investimento, cardápio, total, condições, validade e assinatura. A empresa selecionada determina a marca: NONA usa o novo logo branco/verde; TECO usa o mesmo logo das suas notinhas. Aceita serviços livres e produtos, com preço informado ou vigente, incluindo condição negociada do cliente. Rascunhos permitem adicionar/remover itens; PDFs gerados ficam preservados e alterações posteriores criam uma revisão.
+
+O administrador configura o **Cabeçalho** de cada empresa, manualmente ou importando o DOCX privado. Por escolha do usuário, os dados do novo modelo da NONA são a referência das propostas. Esses dados são configuração privada no banco, e precisam ser carregados na hospedagem após publicar; não são enviados ao GitHub. O cadastro fiscal e documentos anteriores são preservados. Há registro manual de envio, aceite/recusa e perfil de equipe Comercial. Propostas não criam pedidos, contas ou emissão fiscal automaticamente. [Como usar e publicar](docs/PROPOSTAS_COMERCIAIS.md).

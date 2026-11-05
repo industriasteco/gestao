@@ -1,5 +1,7 @@
 # Evidências de homologação automatizada — etapa 2
 
+Atualização gerencial atual: **135 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra e 17 cenários de propostas comerciais. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
+
 Execução final em PostgreSQL: **42 testes passaram; nenhum ignorado; nenhuma falha.** A suite usa dados artificiais e, onde disponíveis localmente, os CSVs privados reais em staging. No GitHub público, fontes privadas são substituídas por fixtures explicitamente artificiais para permitir reprodução dos testes sem expor clientes.
 
 | Critério | Evidência automatizada de homologação |

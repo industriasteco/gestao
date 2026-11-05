@@ -279,3 +279,44 @@ class PayableFilterForm(forms.Form):
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['company'].queryset=companies(user)
+
+class ProposalProfileForm(forms.ModelForm):
+    class Meta:
+        model=ProposalProfile
+        widgets={'address':forms.Textarea(attrs={'rows':3})}
+        fields=['display_name','subtitle','legal_name','tax_id','address','phone','email','responsible']
+        labels={'display_name':'Nome da empresa no cabeçalho','subtitle':'Subtítulo (ex.: PADARIA)','legal_name':'Razão social para propostas','tax_id':'CNPJ para propostas (somente números)','address':'Endereço para propostas','phone':'Telefone para propostas','email':'E-mail para propostas','responsible':'Responsável padrão pela proposta'}
+
+class CommercialProposalForm(ScopedForm):
+    key=forms.UUIDField(widget=forms.HiddenInput)
+    customer_name=forms.CharField(label='Nome / razão social do destinatário',max_length=200,required=False,help_text='Se escolher um cliente cadastrado e deixar em branco, usaremos os dados dele.')
+    responsible=forms.CharField(label='Responsável pela proposta',max_length=200,required=False,help_text='Em branco, usa o responsável do cabeçalho da empresa.')
+    valid_days=forms.IntegerField(label='Validade do orçamento (dias)',min_value=1,max_value=3650,initial=60)
+    class Meta:
+        model=CommercialProposal
+        widgets={'summary':forms.Textarea(attrs={'rows':3}),'customer_address':forms.Textarea(attrs={'rows':3}),'included_items':forms.Textarea(attrs={'rows':5}),'conditions':forms.Textarea(attrs={'rows':3}),'notes':forms.Textarea(attrs={'rows':3})}
+        fields=['company','client','title','summary','issued_on','valid_days','customer_name','customer_tax_id','customer_address','included_items','conditions','notes','responsible']
+        labels={'company':'Empresa proponente / marca','client':'Cliente cadastrado (opcional)','title':'Tipo de serviço / evento','summary':'Resumo do serviço ou produto oferecido','issued_on':'Data da proposta','customer_tax_id':'CPF / CNPJ do destinatário (somente números)','customer_address':'Endereço do destinatário','included_items':'Cardápio / itens inclusos (um por linha)','conditions':'Detalhes do valor / condições de pagamento','notes':'Observações'}
+    def clean(self):
+        data=super().clean()
+        from .proposal_services import prepare_values
+        if data.get('company'):
+            try:data=prepare_values(data)
+            except ValidationError as exc:self.add_error(None,exc)
+        if not data.get('customer_name'):self.add_error('customer_name','Informe o destinatário ou selecione um cliente cadastrado.')
+        if not data.get('responsible'):self.add_error('responsible','Informe o responsável ou configure o responsável padrão no cabeçalho da empresa.')
+        return data
+
+class ProposalItemForm(forms.Form):
+    product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto do catálogo (opcional)',required=False)
+    description=forms.CharField(label='Descrição do serviço / produto',max_length=500,required=False)
+    quantity=forms.DecimalField(label='Quantidade',min_value=Decimal('.001'),max_digits=15,decimal_places=3,initial=1)
+    unit=forms.CharField(label='Unidade (se não usar o catálogo)',max_length=20,required=False)
+    unit_price=forms.DecimalField(label='Valor unitário (R$)',min_value=0,max_digits=15,decimal_places=4,required=False,help_text='Se escolher um produto e deixar em branco, usamos o preço vigente cadastrado.')
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True).order_by('company__code','name')
+    def clean(self):
+        data=super().clean()
+        if not data.get('product') and not data.get('description'):self.add_error('description','Descreva o serviço/produto ou selecione um item do catálogo.')
+        return data

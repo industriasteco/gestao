@@ -248,6 +248,9 @@ def home(request):
         from .views import daily
         return daily(request)
     if not request.user.has_perm('core.view_receivable'):
+        if request.user.has_perm('core.view_commercialproposal'):
+            from .proposal_views import proposals
+            return proposals(request)
         from .logistics_views import manifests,production_actual
         if request.user.has_perm('core.add_productionrecord'):return production_actual(request)
         if request.user.has_perm('core.view_deliverymanifest'):return manifests(request)

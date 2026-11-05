@@ -6,8 +6,16 @@ from core import management_views as mg
 from core import logistics_views as lg
 from core import statement_views as st
 from core import payables_views as ap
+from core import proposal_views as pr
 from core.access import first_access
 urlpatterns=[
+    path('propostas/',pr.proposals,name='proposals'),
+    path('propostas/nova/',pr.proposal_edit,name='proposal_new'),
+    path('propostas/cabecalho/<uuid:pk>/',pr.proposal_profile,name='proposal_profile'),
+    path('propostas/<uuid:pk>/',pr.proposal_detail,name='proposal_detail'),
+    path('propostas/<uuid:pk>/editar/',pr.proposal_edit,name='proposal_edit'),
+    path('propostas/<uuid:pk>/pdf/',pr.proposal_document,name='proposal_document'),
+
     path('empresas/<uuid:pk>/',mg.company_detail,name='company_detail'),
     path('contas-a-pagar/',ap.payables,name='payables'),
     path('contas-a-pagar/<uuid:pk>/',ap.payable_detail,name='payable_detail'),
