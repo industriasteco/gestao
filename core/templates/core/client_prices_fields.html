@@ -1,0 +1,10 @@
+<section data-client-prices data-prefix="{{ client_prices.prefix }}" data-initial-count="{{ client_prices|length }}" style="margin:24px 0">
+  <h3>Preços negociados deste cliente</h3>
+  <p class="subtitle">Escolha os produtos e seus valores. Deixe as linhas vazias para usar o preço padrão. Você pode incluir mais produtos depois.</p>
+  {{ client_prices.management_form }}{{ client_prices.non_form_errors }}
+  <div data-client-price-items>
+    {% for price in client_prices %}<fieldset class="card client-price-item"><legend>Condição por produto</legend>{{ price.as_p }}</fieldset>{% endfor %}
+  </div>
+  <template data-empty-client-price><fieldset class="card client-price-item"><legend>Condição por produto</legend>{{ client_prices.empty_form.as_p }}</fieldset></template>
+  <button type="button" class="secondary" data-add-client-price>＋ Outro preço por produto</button>
+</section>

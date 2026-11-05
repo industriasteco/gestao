@@ -33,6 +33,11 @@ def daily(request):
         except (InvalidOperation,KeyError,Order.DoesNotExist,OrderItem.DoesNotExist): messages.error(request,'Dados inválidos')
         except ValidationError as e: messages.error(request,'; '.join(e.messages))
         return redirect(f'/pedidos-dia/?date={day}')
+    if day>=timezone.localdate() and request.user.has_perm('core.prepare_day'):
+        try:
+            count=prepare(request.user,day,automatic_only=True)
+            if count:messages.success(request,f'{count} pedidos recorrentes preparados automaticamente para esta data.')
+        except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
     orders=Order.objects.filter(company__in=companies(request.user),date=day).select_related('company','client').prefetch_related('items')
     return render(request,'core/daily.html',dict(day=day.isoformat(),orders=orders,production=production(orders),companies=companies(request.user)))
 

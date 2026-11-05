@@ -1,5 +1,7 @@
 {% extends 'core/base.html' %}
 {% load erp %}
+{% load static %}
+{% block extra_head %}{% if kind == 'clientes' %}<script src="{% static 'core/client/prices.js' %}" defer></script>{% endif %}{% endblock %}
 {% block content %}
 <div class="page-heading">
   <div>
@@ -54,7 +56,7 @@
   {% if kind == 'produtos' %}<p class="subtitle">Informe o preço padrão aqui. Você também pode deixá-lo pendente e preencher depois.</p>{% endif %}
   {% if kind == 'precos' %}<p class="subtitle">Escolha o produto, informe o valor e salve. Deixe o cliente vazio para alterar o preço padrão, ou selecione um cliente para definir seu valor negociado. O histórico é registrado automaticamente.</p>{% endif %}
   {% if kind == 'recorrencias' %}<p>Nova regra será salva desativada para sua conferência.</p>{% endif %}
-  <form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button>{% if kind == 'precos' %}Salvar preço{% else %}Salvar cadastro{% endif %}</button></form>
+  <form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}{% if kind == 'clientes' %}{% include 'core/client_prices_fields.html' %}{% endif %}<button>{% if kind == 'precos' %}Salvar preço{% else %}Salvar cadastro{% endif %}</button></form>
 </section>
 {% endif %}
 {% if kind == 'precos' %}<section class="card"><details><summary>Histórico automático de preços</summary>{% include 'core/price_history.html' %}</details></section>{% endif %}

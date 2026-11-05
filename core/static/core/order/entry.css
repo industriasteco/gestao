@@ -10,6 +10,7 @@
 .dialog-heading .eyebrow { margin-top: 0; }
 .dialog-heading > button { padding: 6px 12px; }
 .quick-record-dialog form { max-width: none; }
+.entry-profile-field { display: grid; gap: 6px; margin: 18px 0; }
 .quick-record-dialog input:not([type=checkbox]):not([type=hidden]), .quick-record-dialog select, .quick-record-dialog textarea { width: 100%; }
 .quick-record-dialog select:disabled { opacity: 1; color: var(--ink); background: #f4f7f1; }
 .quick-record-dialog [aria-invalid=true] { border-color: var(--red); }

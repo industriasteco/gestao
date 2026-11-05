@@ -1,6 +1,6 @@
 {% extends 'core/base.html' %}
 {% load static %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'core/order/entry.css' %}"><script src="{% static 'core/order/entry.js' %}" defer></script>{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'core/order/entry.css' %}"><script src="{% static 'core/client/prices.js' %}" defer></script><script src="{% static 'core/order/entry.js' %}" defer></script>{% endblock %}
 {% block content %}
 <p class="eyebrow">PEDIDOS E PRODUÇÃO</p>
 <h1>Novo pedido de teste</h1>
@@ -16,6 +16,7 @@
       <p>
         {{ field.label_tag }}
         {% if field.name == 'client' and user.is_superuser %}<span class="entry-field-actions">{{ field }}<button type="button" class="secondary" data-quick-open="client">＋ Novo cliente</button></span>{% else %}{{ field }}{% endif %}
+        {% if field.name == 'repeat_weekly' %}<span id="client-schedule-status" class="subtitle" role="status"></span>{% endif %}
         {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}
       </p>
       {% endif %}
@@ -33,6 +34,7 @@
   </section>
   <button>Salvar pedido de teste</button>
 </form>
+{{ client_schedules|json_script:'client-schedules-data' }}
 {% if user.is_superuser %}
 <dialog id="quick-client-dialog" class="quick-record-dialog" aria-labelledby="quick-client-title" data-prefix="quick_client">
   <div class="dialog-heading"><div><p class="eyebrow">CADASTRO DURANTE O PEDIDO</p><h2 id="quick-client-title">Novo cliente</h2></div><button type="button" class="secondary" data-close-dialog aria-label="Fechar cadastro de cliente">✕</button></div>
@@ -40,7 +42,9 @@
   <form method="post" action="{% url 'quick_record' 'clientes' %}" class="form-grid quick-record-form">
     {% csrf_token %}<input type="hidden" name="request_key">
     <div class="quick-record-errors notice" role="alert" tabindex="-1" hidden></div>
-    {{ quick_client.as_p }}
+    {% for field in quick_client %}{% if field.name == 'company' or field.name == 'name' or field.name == 'recurring_weekdays' %}<div class="entry-profile-field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}</div>{% endif %}{% endfor %}
+    {% include 'core/client_prices_fields.html' with client_prices=quick_client_prices %}
+    <details style="margin:20px 0"><summary>Dados fiscais, contato e observações do cliente</summary>{% for field in quick_client %}{% if field.name != 'company' and field.name != 'name' and field.name != 'recurring_weekdays' %}<p>{{ field.label_tag }}{{ field }}{{ field.errors }}</p>{% endif %}{% endfor %}</details>
     <div class="dialog-actions"><button>Salvar cliente e selecionar</button><button type="button" class="secondary" data-close-dialog>Cancelar</button></div>
   </form>
 </dialog>

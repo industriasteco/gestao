@@ -24,6 +24,17 @@ As permissões existentes de cadastro são mantidas: somente administrador cria 
 
 ## Publicação e validação
 
-O comando de inicialização deve aplicar a migration `0018`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
+O comando de inicialização deve aplicar a migration `0019`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
 
-149 testes PostgreSQL no conjunto completo, incluindo oito cenários de preço e seis de cadastro durante o pedido. Cobertura de versões no mesmo dia, preços anteriores/futuros, condição negociada, custo/valor zero, dados inválidos, isolamento/permissões, CSRF, idempotência e preservação de notinha, proposta e fechamento. No navegador foram feitos cliente e produto novos, validação/correção, seleção automática, alteração repetida de preço e salvamento de pedido com seus dados preservados, em banco separado de exemplos. As telas e as caixas também foram conferidas no celular.
+158 testes PostgreSQL no conjunto completo, incluindo oito cenários de preço e seis de cadastro durante o pedido. Cobertura de versões no mesmo dia, preços anteriores/futuros, condição negociada, custo/valor zero, dados inválidos, isolamento/permissões, CSRF, idempotência e preservação de notinha, proposta e fechamento. No navegador foram feitos cliente e produto novos, validação/correção, seleção automática, alteração repetida de preço e salvamento de pedido com seus dados preservados, em banco separado de exemplos. As telas e as caixas também foram conferidas no celular.
+
+
+## Dias e preços ao cadastrar o cliente
+
+No cadastro comum ou na caixa **Novo cliente**, marque segunda a domingo em **Dias recorrentes de pedido**. No bloco **Preços negociados deste cliente**, selecione produto e valor; use **Outro preço por produto** para mais condições. Linhas vazias usam o preço padrão. A validação impede preços duplicados por produto ou de outra empresa, e erro em um preço não deixa um cadastro parcial.
+
+Os dias são uma preferência salva; os produtos e as quantidades precisam ser definidos para compor a produção. Ao lançar o primeiro pedido desse cliente, a opção **Repetir este pedido** vem marcada ao selecionar o cliente com dias e ainda sem rotina. Confira produtos, quantidades, horário e turno e salve. A rotina começa na data desse pedido, sem retroagir antes de hoje. Se for um pedido avulso, desmarque a repetição. Preços informados por item ficam cadastrados para aquele cliente, sem alterar o padrão dos demais.
+
+Ao abrir **Pedidos e produção** numa data atual/futura, o sistema prepara automaticamente as rotinas confirmadas para aquele dia, desde que o acesso tenha permissão de preparar produção. O primeiro pedido já lançado é reconhecido e não é duplicado. Abrir novamente a mesma data preserva pedidos e ajustes. Datas passadas e rotinas importadas continuam dependendo do preparo manual existente; a atualização não importa pedidos antigos nem ativa o legado.
+
+Na ficha do cliente, o bloco **Dias recorrentes e pedido habitual** permite adicionar produto, quantidade, preço opcional, horário e turno. Alterar os dias em **Editar cadastro** atualiza as rotinas automáticas. Desmarcar todos os dias interrompe novos preparos; pedidos já preparados permanecem para conferência/ajuste. Uma rotina suspensa individualmente continua suspensa ao alterar os dias. Não há emissão automática, cobrança ou confirmação de produção realizada por marcar os dias.

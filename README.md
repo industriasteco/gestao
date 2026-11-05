@@ -43,7 +43,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-149 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+158 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -85,12 +85,12 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 **Fechamento de clientes** aceita mês ou período livre, gera PDF preservado de entregas confirmadas, registra envio/aprovação/ressalva e exporta CSV após aprovação. Não envia mensagens, não emite NF-e e não cria dívida automaticamente. O mesmo pedido não entra em dois fechamentos ativos.
 
-[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0018` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
+[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0019` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
 
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0018`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0019`.
 
 
 ### Contas a pagar e XML de compras
@@ -117,3 +117,10 @@ O administrador configura o **Cabeçalho** de cada empresa, manualmente ou impor
 ### Cadastros durante o pedido
 
 Em **Novo pedido**, selecione a empresa e use **Novo cliente** ao lado do destinatário ou **Novo produto** na linha do item. As caixas oferecem os mesmos dados dos cadastros, incluindo observações do cliente e unidade/custo/preço de venda do produto. Ao salvar, o registro é persistido e selecionado sem recarregar o pedido; horário, quantidades, OC e observações permanecem. É possível adicionar mais linhas e novos produtos durante o lançamento. Cadastros feitos nessas caixas continuam disponíveis mesmo se o pedido ainda não tiver sido salvo. As permissões de administrador para cadastrar clientes/produtos foram mantidas. [Detalhes de preços e primeiro pedido](docs/PEDIDOS_E_PRECOS.md).
+
+
+### Dias recorrentes e preços no cadastro do cliente
+
+No cadastro do cliente, inclusive na caixa aberta durante o pedido, marque os dias da semana e cadastre preços negociados por produto. No primeiro pedido, **Repetir este pedido nos dias recorrentes do cliente** usa os itens, quantidades, horário e turno como rotina ativa. Também há campo de preço negociado por item do pedido e configuração de produto/quantidade recorrente na ficha do cliente.
+
+Ao abrir **Pedidos e produção** numa data atual ou futura, as novas rotinas automáticas autorizadas entram no planejamento uma única vez. A geração exige a permissão de preparar o dia; registros antigos/importados continuam com preparação manual por padrão. Não há geração retroativa ao consultar datas passadas. Alterar os dias do cliente atualiza suas rotinas automáticas e preserva pedidos já preparados. A migration `0019` adiciona campos com valores vazios/desativados, sem criar pedidos existentes ou alterar preços. [Fluxo detalhado](docs/PEDIDOS_E_PRECOS.md).

@@ -10,11 +10,12 @@ from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from .models import *
-from .forms import (ClientForm, ProductForm, InlinePriceForm, PriceAmountForm, ReceivableForm, PaymentForm,
+from .forms import (ClientForm, ProductForm, InlinePriceForm, PriceAmountForm, ClientRoutineForm, ReceivableForm, PaymentForm,
                     StockItemForm, StockMovementForm, WorkbookForm, RecurrenceForm)
 from .services import companies, authorize, prices_on
 from .management_services import balances, receive, move_stock, set_current_price
 from .workflow import event
+from .client_setup import sync_client_days,save_recurring_items
 
 
 def admin_only(user):
@@ -91,15 +92,30 @@ def dashboard(request):
 @login_required
 def client_detail(request,pk):
     client=get_object_or_404(Client,pk=pk,company__in=companies(request.user))
+    previous_days=list(client.recurring_weekdays)
     edit=ClientForm(instance=client,user=request.user)
     price=InlinePriceForm(company=client.company)
+    routine=ClientRoutineForm(company=client.company)
     if request.method=='POST':
         admin_only(request.user)
         if request.POST.get('action')=='edit':
             edit=ClientForm(request.POST,instance=client,user=request.user)
             edit.fields['company'].disabled=True
             if edit.is_valid():
-                obj=edit.save();event(request.user,obj,'EDITAR_CLIENTE');messages.success(request,'Dados do cliente atualizados.');return redirect('client_detail',pk=pk)
+                with transaction.atomic():
+                    Company.objects.select_for_update().get(pk=client.company_id)
+                    obj=edit.save();sync_client_days(request.user,obj,previous_days);event(request.user,obj,'EDITAR_CLIENTE')
+                messages.success(request,'Dados e dias recorrentes do cliente atualizados.');return redirect('client_detail',pk=pk)
+        elif request.POST.get('action')=='routine':
+            routine=ClientRoutineForm(request.POST,company=client.company)
+            if routine.is_valid():
+                try:
+                    data=routine.cleaned_data
+                    with transaction.atomic():
+                        save_recurring_items(request.user,client,[{'product':data['product'],'quantity':data['quantity']}],data['slot'],data['time'],data['shift'],data['notes'])
+                        if data['amount'] is not None:set_current_price(request.user,client.company,data['product'],data['amount'],client)
+                    messages.success(request,'Produto, quantidade e rotina semanal salvos.');return redirect('client_detail',pk=pk)
+                except ValidationError as exc:routine.add_error(None,exc)
         else:
             price=InlinePriceForm(request.POST,company=client.company)
             if price.is_valid():
@@ -110,7 +126,7 @@ def client_detail(request,pk):
     accounts=[r for r in balances(request.user) if r.client_id==client.pk] if request.user.has_perm('core.view_receivable') else []
     overdue=[r for r in accounts if r.days_late]
     status='Inadimplente' if overdue else ('Adimplente' if accounts else 'Sem histórico financeiro')
-    return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,
+    return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,routine_form=routine,
         status=status,accounts=accounts,pending=Candidate.objects.filter(category='ROTINA_A_CONFERIR',raw__client=' '.join(client.name.upper().split())) if request.user.is_superuser else Candidate.objects.none(),prices=prices_on(timezone.localdate()).filter(client=client).select_related('product').order_by('product__name'),
         price_history=Price.objects.filter(client=client).select_related('product').order_by('-valid_from','product__name'),today=timezone.localdate(),
         rules=Recurrence.objects.filter(client=client).select_related('product').order_by('product__name','time'),

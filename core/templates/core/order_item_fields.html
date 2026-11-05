@@ -3,4 +3,5 @@
   {{ item.non_field_errors }}
   <p>{{ item.product.label_tag }}<span class="entry-field-actions">{{ item.product }}{% if user.is_superuser %}<button type="button" class="secondary" data-quick-open="product">＋ Novo produto</button>{% endif %}</span>{{ item.product.errors }}</p>
   <p>{{ item.quantity.label_tag }}{{ item.quantity }}{{ item.quantity.errors }}</p>
+  {% if item.client_price %}<p>{{ item.client_price.label_tag }}{{ item.client_price }}<span class="helptext">{{ item.client_price.help_text }}</span>{{ item.client_price.errors }}</p>{% endif %}
 </fieldset>

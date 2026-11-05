@@ -22,8 +22,11 @@ def activate(user, rule, reason):
     Audit.objects.create(actor=user,entity=str(rule.pk),action='ATIVAR',after={'active':True},reason=reason)
 
 @transaction.atomic
-def prepare(user, day):
-    rules=Recurrence.objects.select_for_update().filter(active=True,company__in=companies(user),valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day)).select_related('company','client','product')
+def prepare(user, day, automatic_only=False):
+    scope=companies(user)
+    list(Company.objects.select_for_update().filter(pk__in=scope.values('pk')).order_by('pk'))
+    rules=Recurrence.objects.select_for_update().filter(active=True,company__in=scope,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day)).select_related('company','client','product')
+    if automatic_only:rules=rules.filter(auto_prepare=True)
     groups=defaultdict(list)
     for rule in rules:
         authorize(user,rule.company,'core.prepare_day')
@@ -146,9 +149,9 @@ def require(user,permission):
         Audit.objects.create(actor=user,entity='PERMISSOES',action='ACESSO_NEGADO',reason=permission)
         raise PermissionDenied
 
-def prepare(user,day):
+def prepare(user,day,automatic_only=False):
     require(user,'core.prepare_day')
-    return _prepare(user,day)
+    return _prepare(user,day,automatic_only=automatic_only)
 
 def check_production(user,day):
     require(user,'core.check_production')

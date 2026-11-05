@@ -1,6 +1,6 @@
 # Evidências de homologação automatizada — etapa 2
 
-Atualização gerencial atual: **149 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra, 17 cenários de propostas comerciais e 14 cenários de preços/cadastros durante o pedido. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
+Atualização gerencial atual: **158 testes** no conjunto completo, sem ignorados. Inclui contas a pagar/XML, ordem de compra, 17 cenários de propostas comerciais e 14 cenários de preços/cadastros durante o pedido e nove de dias recorrentes/preços do cliente. As evidências históricas da etapa 2 abaixo correspondem ao conjunto original; [evolução e validações posteriores](ETAPA_3.md) e [propostas](PROPOSTAS_COMERCIAIS.md) descrevem o escopo atual.
 
 Tela de login atualizada: repetidos os três testes existentes de primeiro acesso, CSRF e escopo. No navegador: redirecionamento de entrada sem sessão, logo/arquivos estáticos, senha visível/oculta, mensagem de credenciais inválidas sem reapresentar a senha, autenticação com usuário temporário, retorno à página solicitada e logout. Larguras de 320, 390, 768 e 1440 pixels conferidas sem transbordamento. `check`, coleta dos arquivos estáticos e `diff --check` aprovados. Nenhuma migração ou mudança de senha existente.
 
@@ -39,3 +39,6 @@ Não comprovam impressão física com régua, autorização contábil, confirma�
 
 
 Preços e cadastros no pedido: [fluxo e validação](PEDIDOS_E_PRECOS.md). Foram conferidas a preservação dos valores de documentos emitidos, alterações repetidas sem datas, condição por cliente, idempotência dos novos cadastros, CSRF e permissões. A primeira execução após adicionar os arquivos do modal apontou manifesto estático local desatualizado; a coleta de arquivos estáticos foi atualizada antes da execução final.
+
+
+Dias recorrentes/preços no cliente: testes cobrem cadastro comum e rápido com dias/preços, repetição idempotente do primeiro pedido, planejamento somente nos dias marcados, ausência de geração retroativa ou por acesso sem permissão, preservação de rotinas manuais/suspensas e pedidos ajustados, alteração dos dias, preço específico e validação atômica por empresa. No navegador foram conferidos dias e preço na caixa, correção de duplicidade, repetição na segunda-feira seguinte, ausência na terça não marcada, ficha do cliente e celular.

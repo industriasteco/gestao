@@ -3,6 +3,18 @@ const companySelect = orderForm.querySelector('[name="company"]');
 const statusMessage = document.querySelector('#quick-record-status');
 const dialogs = {client: document.querySelector('#quick-client-dialog'), product: document.querySelector('#quick-product-dialog')};
 let targetProduct = null;
+const clientSchedules = JSON.parse(document.querySelector('#client-schedules-data').textContent);
+const clientSelect = orderForm.querySelector('[name="client"]');
+const repeatWeekly = orderForm.querySelector('[name="repeat_weekly"]');
+const weekdayNames = {1:'Segunda',2:'Terça',3:'Quarta',4:'Quinta',5:'Sexta',6:'Sábado',7:'Domingo'};
+function showClientSchedule(reset) {
+  const schedule = clientSchedules[clientSelect.value];
+  const days = schedule?.weekdays || [];
+  document.querySelector('#client-schedule-status').textContent = days.length ? `Dias do cliente: ${days.map(day => weekdayNames[day]).join(', ')}.` : 'Marque os dias recorrentes no cadastro do cliente para repetir este pedido.';
+  if (reset) repeatWeekly.checked = days.length > 0 && !schedule.configured;
+}
+clientSelect.addEventListener('change', () => showClientSchedule(true));
+showClientSchedule(false);
 
 function announce(message) {
   statusMessage.textContent = message;
@@ -22,6 +34,14 @@ orderForm.addEventListener('click', event => {
   if (!dialog) return;
   if (kind === 'product') targetProduct = button.closest('.order-item').querySelector('select');
   const form = dialog.querySelector('form');
+  if (kind === 'client') {
+    const source = orderForm.querySelector('.order-item select');
+    for (const select of form.querySelectorAll('[data-client-prices] select')) {
+      for (const option of source.options) {
+        if (!Array.from(select.options).some(current => current.value === option.value)) select.add(option.cloneNode(true));
+      }
+    }
+  }
   const company = form.elements.namedItem(`${dialog.dataset.prefix}-company`);
   company.value = companySelect.value;
   company.disabled = true;
@@ -35,6 +55,7 @@ for (const [kind, dialog] of Object.entries(dialogs)) {
   if (!dialog) continue;
   const form = dialog.querySelector('form');
   const errors = dialog.querySelector('.quick-record-errors');
+  form.addEventListener('invalid', event => { const details = event.target.closest('details'); if (details) details.open = true; }, true);
   dialog.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => dialog.close()));
   dialog.addEventListener('cancel', event => { if (form.dataset.saving) event.preventDefault(); });
   form.addEventListener('submit', async event => {
@@ -53,17 +74,22 @@ for (const [kind, dialog] of Object.entries(dialogs)) {
       const result = await response.json();
       if (!response.ok) {
         if (response.status === 409) form.elements.request_key.value = crypto.randomUUID();
-        const messages = [];
+        const messages = result.price_errors || [];
         for (const [name, issues] of Object.entries(result.errors || {})) {
           const field = form.elements.namedItem(`${dialog.dataset.prefix}-${name}`);
-          if (field) field.setAttribute('aria-invalid', 'true');
+          if (field) {
+            field.setAttribute('aria-invalid', 'true');
+            const details = field.closest('details');
+            if (details) details.open = true;
+          }
           const label = field ? form.querySelector(`label[for="${field.id}"]`)?.textContent : '';
           for (const issue of issues) messages.push(`${label || ''} ${issue.message}`.trim());
         }
         throw new Error(messages.join('\n') || result.message || 'Confira os dados e tente novamente.');
       }
       const record = result.record;
-      const selects = kind === 'client' ? [orderForm.querySelector('[name="client"]')] : orderForm.querySelectorAll('.order-item select');
+      if (kind === 'client') clientSchedules[record.id] = {weekdays:record.weekdays, configured:record.configured};
+      const selects = kind === 'client' ? [clientSelect] : document.querySelectorAll('#order-entry-form .order-item select, #quick-client-dialog [data-client-prices] select');
       for (const select of selects) {
         if (!Array.from(select.options).some(option => option.value === record.id)) select.add(new Option(record.name, record.id));
       }

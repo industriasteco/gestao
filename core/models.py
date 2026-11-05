@@ -38,6 +38,7 @@ class Client(Entity):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=40, blank=True)
     requires_purchase_order = models.BooleanField(default=False)
+    recurring_weekdays = models.JSONField(default=list, blank=True)
     def __str__(self): return self.name
 
 class Product(Entity):
@@ -73,6 +74,7 @@ class Recurrence(Entity):
     valid_from = models.DateField()
     valid_until = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=False)
+    auto_prepare = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)
     source_key = models.CharField(max_length=250, null=True, blank=True, unique=True)

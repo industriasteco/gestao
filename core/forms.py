@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from .models import *
 from .services import companies
 
+WEEKDAYS=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'Sábado'),(7,'Domingo')]
+
 class ScopedForm(forms.ModelForm):
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
@@ -27,8 +29,10 @@ class CompanyForm(ScopedForm):
         labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)','address':'Endereço da emissora','phone':'Telefone da emissora','email':'E-mail da emissora','fiscal_system':'Sistema fiscal atual (Imagem, Multicomp ou outro)'}
 
 class ClientForm(ScopedForm):
+    recurring_weekdays=forms.TypedMultipleChoiceField(label='Dias recorrentes de pedido',choices=WEEKDAYS,coerce=int,required=False,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}),help_text='Marque os dias fixos. No primeiro pedido, use a opção Repetir este pedido para definir os produtos e quantidades. Alterar os dias atualiza as rotinas automáticas, preservando pedidos já preparados.')
     class Meta:
-        model=Client;fields=['company','name','legal_name','tax_id','email','phone','address','notes','requires_purchase_order']
+        model=Client;fields=['company','name','recurring_weekdays','legal_name','tax_id','email','phone','address','notes','requires_purchase_order']
+        widgets={'address':forms.Textarea(attrs={'rows':3}),'notes':forms.Textarea(attrs={'rows':3})}
         labels={'company':'Empresa','name':'Nome do cliente','legal_name':'Razão social','tax_id':'CPF / CNPJ confirmado (somente números)','email':'E-mail para fechamento','phone':'Telefone / WhatsApp','requires_purchase_order':'Exigir ordem de compra antes de emitir para este cliente','address':'Endereço','notes':'Observações'}
 
 class ProductForm(ScopedForm):
@@ -48,10 +52,10 @@ class PriceAmountForm(forms.Form):
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
 
 class RecurrenceForm(ScopedForm):
-    weekdays=forms.TypedMultipleChoiceField(label='Dias de entrega',choices=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'Sábado'),(7,'Domingo')],coerce=int,widget=forms.CheckboxSelectMultiple)
+    weekdays=forms.TypedMultipleChoiceField(label='Dias de entrega',choices=WEEKDAYS,coerce=int,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}))
     class Meta:
-        model=Recurrence;fields=['company','client','product','quantity','slot','time','shift','weekdays','valid_from','valid_until','notes']
-        labels={'company':'Empresa','client':'Cliente','product':'Produto','quantity':'Quantidade padrão','slot':'Identificação da entrega','time':'Horário','shift':'Turno','valid_from':'Início','valid_until':'Fim','notes':'Instruções de preparo e entrega'}
+        model=Recurrence;fields=['company','client','product','quantity','slot','time','shift','weekdays','auto_prepare','valid_from','valid_until','notes']
+        labels={'company':'Empresa','client':'Cliente','product':'Produto','quantity':'Quantidade padrão','slot':'Identificação da entrega','time':'Horário','shift':'Turno','auto_prepare':'Preparar automaticamente ao abrir a produção da data','valid_from':'Início','valid_until':'Fim','notes':'Instruções de preparo e entrega'}
 
 class ProductionInfoForm(forms.ModelForm):
     reason=forms.CharField(label='Motivo do ajuste',min_length=3)
@@ -71,17 +75,61 @@ class MonthForm(forms.Form):
 
 class ManualOrderForm(ScopedForm):
     key=forms.UUIDField(widget=forms.HiddenInput)
+    repeat_weekly=forms.BooleanField(required=False,label='Repetir este pedido nos dias recorrentes do cliente',help_text='Usa os produtos e quantidades deste pedido como rotina semanal. Outros pedidos e documentos já preparados ficam preservados.')
+    def clean(self):
+        data=super().clean()
+        if data.get('repeat_weekly'):
+            if data.get('client') and not data['client'].recurring_weekdays:self.add_error('repeat_weekly','Marque os dias recorrentes no cadastro do cliente.')
+            if not data.get('shift'):self.add_error('shift','Escolha o turno da produção recorrente.')
+        return data
     class Meta:
-        model=Order;fields=['company','client','purchase_order','date','time','slot','shift','baker','driver','notes']
+        model=Order;fields=['company','client','repeat_weekly','purchase_order','date','time','slot','shift','baker','driver','notes']
         help_texts={'purchase_order':'Informe o número ou referência da OC enviada pelo cliente, se disponível.'}
         labels={'company':'Empresa','client':'Cliente','purchase_order':'Ordem de compra do cliente (número / referência)','date':'Dia da entrega','time':'Horário','slot':'Identificação da entrega','shift':'Turno','baker':'Padeiro','driver':'Motorista','notes':'Observações'}
 
 class ManualItemForm(forms.Form):
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
     quantity=forms.DecimalField(label='Quantidade',min_value=0,max_digits=15,decimal_places=3)
+    client_price=forms.DecimalField(label='Preço negociado para este cliente (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4,help_text='Ao salvar o pedido, este valor fica cadastrado para o cliente. Em branco, mantém o preço já configurado.')
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True)
+        if not user.is_superuser:self.fields.pop('client_price')
+
+class ClientPriceItemForm(forms.Form):
+    product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
+    amount=forms.DecimalField(label='Preço para este cliente (R$)',min_value=0,max_digits=15,decimal_places=4)
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['product'].queryset=Product.objects.filter(company__in=companies(user),active=True).order_by('name')
+
+class ClientPricesBaseFormSet(forms.BaseFormSet):
+    def clean(self):
+        if any(self.errors):return
+        seen=set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get('DELETE'):continue
+            product=form.cleaned_data['product']
+            if product.pk in seen:raise ValidationError('Informe apenas um preço por produto.')
+            seen.add(product.pk)
+
+def client_price_forms(user,data=None,prefix='client_prices'):
+    if data is not None and not any(key.startswith(prefix+'-') for key in data):
+        data=data.copy();data[prefix+'-TOTAL_FORMS']='0';data[prefix+'-INITIAL_FORMS']='0'
+    ItemSet=forms.formset_factory(ClientPriceItemForm,formset=ClientPricesBaseFormSet,extra=2,max_num=50,validate_max=True,can_delete=True)
+    return ItemSet(data,prefix=prefix,form_kwargs={'user':user})
+
+class ClientRoutineForm(forms.Form):
+    product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
+    quantity=forms.DecimalField(label='Quantidade por entrega',min_value=Decimal('.001'),max_digits=15,decimal_places=3)
+    amount=forms.DecimalField(label='Preço para este cliente (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4)
+    slot=forms.CharField(label='Identificação da entrega',max_length=60,initial='Pedido fixo')
+    time=forms.TimeField(label='Horário da entrega',widget=forms.TimeInput(format='%H:%M',attrs={'type':'time'}))
+    shift=forms.ChoiceField(label='Turno da produção',choices=[('','Selecione'),('NOTURNO','Noturno'),('DIURNO','Diurno')])
+    notes=forms.CharField(label='Instruções para este pedido recorrente',required=False,max_length=2000,widget=forms.Textarea(attrs={'rows':3}))
+    def __init__(self,*args,company,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['product'].queryset=Product.objects.filter(company=company,active=True).order_by('name')
 
 class InlinePriceForm(forms.Form):
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')

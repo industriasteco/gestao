@@ -15,6 +15,7 @@ from django.utils import timezone
 from .management_services import set_current_price
 from .forms import *
 from . import workflow
+from .client_setup import client_prices_data,save_client_prices,save_recurring_items
 
 @login_required
 def guide(request):return render(request,'core/guide.html')
@@ -24,6 +25,7 @@ def records(request,kind):
     options={'empresas':(Company,CompanyForm),'clientes':(Client,ClientForm),'produtos':(Product,ProductForm),'precos':(Price,PriceForm),'recorrencias':(Recurrence,RecurrenceForm)}
     if kind not in options:return redirect('records',kind='clientes')
     model,form_type=options[kind]
+    client_prices=client_price_forms(request.user,request.POST if request.method=='POST' else None) if kind=='clientes' else None
     if request.method=='POST':
         if not request.user.is_superuser:raise PermissionDenied
         if request.POST.get('action')=='activate' and kind=='recorrencias':
@@ -32,14 +34,18 @@ def records(request,kind):
             except ValidationError as e:messages.error(request,'; '.join(e.messages))
             return redirect('records',kind=kind)
         form=form_type(request.POST,user=request.user)
-        if form.is_valid():
+        valid=form.is_valid()
+        if client_prices is not None:valid=client_prices.is_valid() and valid
+        if valid:
             try:
+                price_rows=client_prices_data(client_prices,form.cleaned_data['company']) if client_prices is not None else []
                 with transaction.atomic():
                     if kind=='precos':
                         data=form.cleaned_data
                         obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'))
                     else:
                         obj=form.save()
+                        if kind=='clientes':save_client_prices(request.user,obj,price_rows)
                         if kind=='produtos' and form.cleaned_data.get('amount') is not None:
                             set_current_price(request.user,obj.company,obj,form.cleaned_data['amount'])
                     workflow.event(request.user,obj,'CADASTRAR',after={k:str(v) for k,v in form.cleaned_data.items()})
@@ -63,7 +69,7 @@ def records(request,kind):
         overdue={r.client_id for r in balances(request.user) if r.days_late}
         known={r.client_id for r in balances(request.user)}
         for row in rows:row.financial_status='Inadimplente' if row.pk in overdue else ('Adimplente' if row.pk in known else 'Sem histórico financeiro')
-    return render(request,'core/records.html',dict(kind=kind,rows=rows,form=form,options=options,price_history=price_history,today=today))
+    return render(request,'core/records.html',dict(kind=kind,rows=rows,form=form,options=options,price_history=price_history,today=today,client_prices=client_prices))
 
 @login_required
 def order_detail(request,pk):
@@ -149,6 +155,12 @@ def new_order(request):
             lines=[item.cleaned_data for item in items if item.cleaned_data]
             if not lines or not any(line['quantity']>0 for line in lines):raise ValidationError('Inclua ao menos um item com quantidade positiva.')
             if any(line['product'].company_id!=company.pk for line in lines):raise ValidationError('Todos os produtos devem pertencer à empresa do pedido.')
+            prices={}
+            for line in lines:
+                amount=line.get('client_price')
+                if amount is not None:
+                    previous=prices.setdefault(line['product'].pk,amount)
+                    if previous!=amount:raise ValidationError('Informe o mesmo preço nas linhas repetidas de um produto.')
             with transaction.atomic():
                 Company.objects.select_for_update().get(pk=company.pk)
                 key='manual:'+str(form.cleaned_data['key'])
@@ -157,11 +169,17 @@ def new_order(request):
                     order=form.save(commit=False);order.idempotency_key=key;order.synthetic=True;order.save()
                     for line in lines:
                         p=line['product'];OrderItem.objects.create(order=order,product=p,product_name=p.name,unit=p.unit,quantity=line['quantity'])
+                        if p.pk in prices:set_current_price(request.user,company,p,prices.pop(p.pk),order.client)
+                    if form.cleaned_data.get('repeat_weekly'):
+                        save_recurring_items(request.user,order.client,[line for line in lines if line['quantity']>0],order.slot,order.time,order.shift,order.notes,origin=order,replace=True)
                     workflow.event(request.user,order,'PEDIDO_MANUAL_TESTE',after={'items':len(lines)})
                 elif order.company_id!=company.pk:raise ValidationError('Chave já usada para outra empresa.')
             return redirect('order',pk=order.pk)
         except ValidationError as e:form.add_error(None,e)
-    return render(request,'core/new_order.html',{'form':form,'items':items,
+    configured=set(Recurrence.objects.filter(company__in=companies(request.user),auto_prepare=True).values_list('client_id',flat=True))
+    schedules={str(client.pk):{'weekdays':client.recurring_weekdays,'configured':client.pk in configured} for client in Client.objects.filter(company__in=companies(request.user))}
+    return render(request,'core/new_order.html',{'form':form,'items':items,'client_schedules':schedules,
+        'quick_client_prices':client_price_forms(request.user,prefix='quick_client_prices'),
         'quick_client':ClientForm(user=request.user,prefix='quick_client'),
         'quick_product':ProductForm(user=request.user,prefix='quick_product')})
 
@@ -176,11 +194,26 @@ def quick_record(request,kind):
     if kind not in options:return JsonResponse({'message':'Cadastro indisponível.'},status=404)
     model,form_type,prefix=options[kind]
     form=form_type(request.POST,user=request.user,prefix=prefix)
+    client_prices=client_price_forms(request.user,request.POST,prefix='quick_client_prices') if kind=='clientes' else None
     try:key=uuid.UUID(request.POST.get('request_key',''))
     except (ValueError,TypeError,AttributeError):return JsonResponse({'message':'Reabra o cadastro para tentar novamente.'},status=400)
-    if not form.is_valid():return JsonResponse({'errors':form.errors.get_json_data()},status=400)
+    valid=form.is_valid()
+    if client_prices is not None:valid=client_prices.is_valid() and valid
+    if not valid:
+        errors=[]
+        if client_prices is not None:
+            errors.extend(str(error) for error in client_prices.non_form_errors())
+            for index,item in enumerate(client_prices,1):
+                if item.cleaned_data.get('DELETE'):continue
+                for field,issues in item.errors.items():
+                    label=item.fields[field].label if field in item.fields else 'Preço'
+                    errors.extend(f'Preço {index} · {label}: {issue}' for issue in issues)
+        return JsonResponse({'errors':form.errors.get_json_data(),'price_errors':errors},status=400)
     company=form.cleaned_data['company']
+    try:price_rows=client_prices_data(client_prices,company) if client_prices is not None else []
+    except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
     values={name:str(value) if value is not None else '' for name,value in form.cleaned_data.items()}
+    if client_prices is not None:values['prices']=[{'product':str(row['product'].pk),'amount':str(row['amount'])} for row in price_rows]
     created=False
     try:
         with transaction.atomic():
@@ -192,12 +225,15 @@ def quick_record(request,kind):
                     return JsonResponse({'message':'O cadastro anterior já foi salvo com outros dados. Para cadastrar estes novos dados, confira e clique em salvar novamente.'},status=409)
             else:
                 obj=form.save(commit=False);obj.pk=key;obj.full_clean();obj.save()
+                if kind=='clientes':save_client_prices(request.user,obj,price_rows)
                 if kind=='produtos' and form.cleaned_data.get('amount') is not None:
                     set_current_price(request.user,company,obj,form.cleaned_data['amount'])
                 workflow.event(request.user,obj,'CADASTRO_RAPIDO',after={'kind':kind,'values':values})
                 created=True
     except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
-    return JsonResponse({'record':{'id':str(obj.pk),'name':obj.name,'company':str(obj.company_id)},'created':created},status=201 if created else 200)
+    record={'id':str(obj.pk),'name':obj.name,'company':str(obj.company_id)}
+    if kind=='clientes':record.update(weekdays=obj.recurring_weekdays,configured=Recurrence.objects.filter(client=obj,auto_prepare=True).exists())
+    return JsonResponse({'record':record,'created':created},status=201 if created else 200)
 
 @login_required
 def start_demo(request):

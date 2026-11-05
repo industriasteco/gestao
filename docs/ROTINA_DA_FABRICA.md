@@ -6,7 +6,7 @@ O objetivo é ter uma pessoa responsável por cada registro e um horário para c
 
 1. Revise os clientes e produtos reconhecidos na planilha. Confirme horários, embalagens, instruções e quantidades variáveis. Não há pedidos de outubro importados.
 2. Cadastre custo unitário e preço padrão em Produtos. Inclua no custo informado os componentes que deseja considerar: ingredientes, embalagem, mão de obra e energia. O sistema mostra lucro bruto estimado, não lucro líquido contábil.
-3. Na ficha do cliente, complete endereço, contato e CPF/CNPJ confirmado; registre os preços especiais por produto. Informe apenas o valor, sem datas de vigência.
+3. Ao cadastrar o cliente, complete endereço, contato e CPF/CNPJ confirmado, marque os dias recorrentes e registre os preços especiais por produto. Informe apenas o valor, sem datas de vigência. No primeiro pedido, use Repetir este pedido para definir os produtos/quantidades da rotina.
 4. Em Estoque, cadastre insumos, unidade e mínimo. Registre a contagem inicial como entrada. O saldo depende dos movimentos lançados, não das quantidades planejadas.
 5. Cadastre motoristas, veículos e rotas. Adicione os clientes na ordem de entrega e suas instruções.
 6. Em Equipe, crie uma conta individual por pessoa, com empresa e perfil. Não compartilhe a conta do administrador.
@@ -15,7 +15,7 @@ O objetivo é ter uma pessoa responsável por cada registro e um horário para c
 
 Nos primeiros pedidos, use **Novo pedido → Novo cliente** e **Novo produto** para cadastrar sem sair do lançamento. Ao salvar a caixa, o cliente/produto já fica cadastrado e selecionado; os dados digitados no pedido são mantidos. O novo produto permite informar unidade, custo e valor de venda. Se precisar trocar um valor, abra **Produtos** ou **Preços → Alterar preço**: o valor permanece ativo até a próxima alteração, inclusive com várias trocas no mesmo dia. O histórico é automático e documentos emitidos mantêm os valores originais.
 
-O responsável pelos pedidos prepara a data e confere mudanças solicitadas pelos clientes. Preparar novamente não duplica pedidos nem desfaz ajustes. O planejamento mostra a quantidade por produto e turno. Produtos, unidades ou instruções pendentes precisam ser esclarecidos antes de produzir.
+Ao abrir a produção de uma data atual/futura com o acesso autorizado a preparar o dia, os novos pedidos recorrentes são preparados automaticamente conforme os dias marcados. O responsável confere as mudanças solicitadas pelos clientes; o botão Preparar dia continua disponível para as rotinas manuais existentes. Preparar novamente não duplica pedidos nem desfaz ajustes. O planejamento mostra a quantidade por produto e turno. Produtos, unidades ou instruções pendentes precisam ser esclarecidos antes de produzir.
 
 O padeiro consulta o planejamento. A equipe registra cada lote ou fechamento de turno: produto, quantidade total produzida, quantidade perdida, responsável e motivo das perdas. A quantidade útil é o total menos as perdas. A comparação por empresa/produto evidencia falta ou excedente.
 
