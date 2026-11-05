@@ -10,3 +10,10 @@ def brl(value):
 @register.filter
 def weekday(value):
     return {1:'Segunda',2:'Terça',3:'Quarta',4:'Quinta',5:'Sexta',6:'Sábado',7:'Domingo'}.get(value, value)
+
+@register.filter
+def brl4(value):
+    try:
+        return 'R$ ' + f'{Decimal(value):,.4f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+    except (InvalidOperation,TypeError,ValueError):
+        return 'Pendente'

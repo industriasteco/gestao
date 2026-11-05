@@ -24,16 +24,16 @@ class ScopedForm(forms.ModelForm):
 
 class CompanyForm(ScopedForm):
     class Meta:
-        model=Company;fields=['code','name','legal_name','cnpj']
-        labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)'}
+        model=Company;fields=['code','name','legal_name','cnpj','address','phone','email']
+        labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)','address':'Endereço da emissora','phone':'Telefone da emissora','email':'E-mail da emissora'}
 
 class ClientForm(ScopedForm):
     class Meta:
-        model=Client;fields=['company','name','address','notes']
-        labels={'company':'Empresa','name':'Nome do cliente','address':'Endereço','notes':'Observações'}
+        model=Client;fields=['company','name','legal_name','tax_id','email','phone','address','notes']
+        labels={'company':'Empresa','name':'Nome do cliente','legal_name':'Razão social','tax_id':'CPF / CNPJ confirmado (somente números)','email':'E-mail para fechamento','phone':'Telefone / WhatsApp','address':'Endereço','notes':'Observações'}
 
 class ProductForm(ScopedForm):
-    amount=forms.DecimalField(label='Preço padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
+    amount=forms.DecimalField(label='Valor de venda padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
     valid_from=forms.DateField(label='Preço válido a partir de', required=False, initial=timezone.localdate, widget=forms.DateInput(attrs={'type':'date'}))
     def clean(self):
         data=super().clean()
@@ -41,8 +41,8 @@ class ProductForm(ScopedForm):
             self.add_error('valid_from','Informe a data de vigência do preço.')
         return data
     class Meta:
-        model=Product;fields=['company','name','unit']
-        labels={'company':'Empresa','name':'Nome do produto','unit':'Unidade (UN, KG...)'}
+        model=Product;fields=['company','name','unit','production_cost']
+        labels={'company':'Empresa','name':'Nome do produto','unit':'Unidade (UN, KG...)','production_cost':'Custo de produção por unidade (R$)'}
 
 class PriceForm(ScopedForm):
     class Meta:
@@ -66,8 +66,8 @@ class RecurrenceForm(ScopedForm):
 class ProductionInfoForm(forms.ModelForm):
     reason=forms.CharField(label='Motivo do ajuste',min_length=3)
     class Meta:
-        model=Order;fields=['shift','baker','driver','notes']
-        labels={'shift':'Turno','baker':'Padeiro responsável','driver':'Motorista','notes':'Observações'}
+        model=Order;fields=['shift','baker','separator','driver','notes']
+        labels={'shift':'Turno','baker':'Padeiro responsável','separator':'Responsável pela separação','driver':'Motorista','notes':'Observações'}
 
 class MonthForm(forms.Form):
     company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa')
@@ -138,3 +138,86 @@ class WorkbookForm(forms.Form):
         if not file.name.lower().endswith(('.xlsm','.xlsx')) or file.size>12*1024*1024:
             raise ValidationError('Selecione uma planilha XLSM/XLSX de até 12 MB.')
         return file
+
+class ProductionRecordForm(ScopedForm):
+    class Meta:
+        model=ProductionRecord
+        fields=['company','product','date','shift','batch','quantity','losses','baker','notes']
+        labels={'company':'Empresa','product':'Produto','date':'Data da produção','shift':'Turno','batch':'Identificação do lote','quantity':'Quantidade total produzida','losses':'Quantidade perdida (parte do total)','baker':'Padeiro responsável','notes':'Observações / motivo das perdas'}
+    def clean(self):
+        data=super().clean()
+        if data.get('date') and data['date']>timezone.localdate():self.add_error('date','Registre somente a produção já realizada.')
+        if data.get('quantity') is not None and data['quantity']<=0:self.add_error('quantity','Informe uma quantidade positiva.')
+        if data.get('losses') and not data.get('notes'):self.add_error('notes','Descreva as perdas para conferência.')
+        return data
+
+class DriverForm(ScopedForm):
+    class Meta:
+        model=Driver;fields=['company','name','phone','vehicle','active']
+        labels={'company':'Empresa','name':'Nome do motorista','phone':'Telefone','vehicle':'Veículo / placa','active':'Ativo'}
+
+class DeliveryRouteForm(ScopedForm):
+    class Meta:
+        model=DeliveryRoute;fields=['company','name','driver','notes','active']
+        labels={'company':'Empresa','name':'Nome da rota','driver':'Motorista responsável','notes':'Instruções da rota','active':'Ativa'}
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,user=user,**kwargs)
+        self.fields['driver'].queryset=Driver.objects.filter(company__in=companies(user),active=True)
+    def clean(self):
+        data=super().clean()
+        if data.get('driver') and data.get('company') and data['driver'].company_id!=data['company'].pk:
+            self.add_error('driver','Selecione um motorista da mesma empresa.')
+        return data
+
+class RouteStopForm(forms.ModelForm):
+    sequence=forms.IntegerField(label='Ordem da parada (1, 2, 3...)',min_value=1)
+    class Meta:
+        model=RouteStop;fields=['client','sequence','instructions']
+        labels={'client':'Cliente','sequence':'Ordem da parada (1, 2, 3...)','instructions':'Instruções de entrega'}
+    def __init__(self,*args,route,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.instance.route=route
+        self.fields['client'].queryset=Client.objects.filter(company=route.company,active=True)
+
+class ManifestForm(forms.Form):
+    route=forms.ModelChoiceField(queryset=DeliveryRoute.objects.none(),label='Rota')
+    date=forms.DateField(label='Dia das entregas',widget=forms.DateInput(attrs={'type':'date'}))
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['route'].queryset=DeliveryRoute.objects.filter(company__in=companies(user),active=True,driver__active=True)
+
+class ManifestLineForm(forms.ModelForm):
+    class Meta:
+        model=ManifestLine;fields=['delivery_status','payment_method','reported_amount','receivable','evidence']
+        labels={'delivery_status':'Situação da entrega','payment_method':'Forma de pagamento informada','reported_amount':'Valor em dinheiro informado pelo motorista (R$)','receivable':'Conta a receber vinculada (opcional)','evidence':'Observação / comprovante da entrega e pagamento'}
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['receivable'].queryset=Receivable.objects.filter(company=self.instance.manifest.company,client=self.instance.order.client,voided=False)
+        self.fields['receivable'].help_text='Somente pedidos reais podem baixar contas. Pedidos de homologação apenas simulam o malote.'
+
+class CashBagForm(forms.Form):
+    reference=forms.CharField(label='Número / identificação do malote',max_length=100)
+    counted=forms.DecimalField(label='Dinheiro contado pela empresa (R$)',min_value=0,max_digits=15,decimal_places=2)
+    notes=forms.CharField(label='Observação da conferência (obrigatória se houver diferença)',required=False,widget=forms.Textarea)
+
+class StatementForm(forms.Form):
+    company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa fornecedora')
+    client=forms.ModelChoiceField(queryset=Client.objects.none(),label='Cliente')
+    start=forms.DateField(label='Início do período',widget=forms.DateInput(attrs={'type':'date'}))
+    end=forms.DateField(label='Fim do período',widget=forms.DateInput(attrs={'type':'date'}))
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['company'].queryset=companies(user)
+        self.fields['client'].queryset=Client.objects.filter(company__in=companies(user))
+    def clean(self):
+        data=super().clean()
+        if data.get('company') and data.get('client') and data['client'].company_id!=data['company'].pk:raise ValidationError('Selecione cliente e empresa compatíveis.')
+        if data.get('start') and data.get('end'):
+            if data['end']<data['start']:raise ValidationError('O fim do período deve ser igual ou posterior ao início.')
+            if data['end']>timezone.localdate():raise ValidationError('Fechamentos só podem incluir períodos já realizados.')
+        return data
+
+class ShiftResponsiblesForm(forms.Form):
+    night=forms.CharField(label='Padeiro noturno',max_length=100,required=False)
+    daytime=forms.CharField(label='Padeiro diurno',max_length=100,required=False)
+    separator=forms.CharField(label='Responsável pela separação',max_length=100,required=False)

@@ -35,6 +35,7 @@ def range_dates(request):
 
 @login_required
 def dashboard(request):
+    if not request.user.has_perm('core.view_receivable'):raise PermissionDenied
     scope=companies(request.user)
     try:start,end=range_dates(request)
     except ValidationError as exc:
@@ -70,7 +71,12 @@ def dashboard(request):
         clients=Client.objects.filter(company__in=scope,active=True).count(),
         rules=Recurrence.objects.filter(company__in=scope,active=True).count(),
         units=list(items.values('unit').annotate(quantity=Sum('quantity'))),
-        test_orders=orders.filter(synthetic=True).count())
+        test_orders=orders.filter(synthetic=True).count(),
+        missing_costs=Product.objects.filter(company__in=scope,active=True,production_cost__isnull=True).count(),
+        costed_loss=sum((r.losses*r.cost_snapshot for r in ProductionRecord.objects.filter(company__in=scope,date__range=(start,end),cost_snapshot__isnull=False)),Decimal(0)),
+        uncosted_production=ProductionRecord.objects.filter(company__in=scope,date__range=(start,end),cost_snapshot__isnull=True).count(),
+        produced=ProductionRecord.objects.filter(company__in=scope,date__range=(start,end)).values('unit').annotate(quantity=Sum('quantity'),losses=Sum('losses')),
+        pending_bags=DeliveryManifest.objects.filter(company__in=scope).filter(Q(cash_bag__isnull=True)|Q(cash_bag__status='DIVERGENTE')).count())
     return render(request,'core/dashboard.html',context)
 
 
@@ -93,7 +99,7 @@ def client_detail(request,pk):
                     set_price(request.user,client.company,price.cleaned_data['product'],price.cleaned_data['amount'],price.cleaned_data['valid_from'],client)
                     messages.success(request,'Preço negociado salvo com histórico.');return redirect('client_detail',pk=pk)
                 except ValidationError as exc:price.add_error(None,exc)
-    accounts=[r for r in balances(request.user) if r.client_id==client.pk]
+    accounts=[r for r in balances(request.user) if r.client_id==client.pk] if request.user.has_perm('core.view_receivable') else []
     overdue=[r for r in accounts if r.days_late]
     status='Inadimplente' if overdue else ('Adimplente' if accounts else 'Sem histórico financeiro')
     return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,
@@ -119,15 +125,22 @@ def product_detail(request,pk):
                     event(request.user,product,'EDITAR_PRODUTO')
                 messages.success(request,'Produto e preço salvos.');return redirect('product_detail',pk=pk)
             except ValidationError as exc:form.add_error(None,exc)
-    return render(request,'core/product_detail.html',dict(product=product,form=form,
+    from .services import price_for
+    today=timezone.localdate()
+    current=Price.objects.filter(product=product,client__isnull=True,valid_from__lte=today).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=today))
+    sale=current.first().amount if current.count()==1 else None
+    profit=sale-product.production_cost if sale is not None and product.production_cost is not None else None
+    margin=(profit/sale*100) if profit is not None and sale else None
+    return render(request,'core/product_detail.html',dict(product=product,form=form,sale=sale,profit=profit,margin=margin,
         prices=Price.objects.filter(product=product).select_related('client').order_by('-valid_from')))
 
 
 @login_required
 def finance(request):
+    if not request.user.has_perm('core.view_receivable'):raise PermissionDenied
     form=ReceivableForm(request.POST or None,user=request.user,initial={'issued_on':timezone.localdate()})
     if request.method=='POST':
-        admin_only(request.user)
+        if not request.user.has_perm('core.add_receivable'):raise PermissionDenied
         if form.is_valid():
             with transaction.atomic():
                 obj=form.save();event(request.user,obj,'CADASTRAR_RECEBIVEL',after={'amount':str(obj.amount),'due_on':str(obj.due_on)})
@@ -138,10 +151,11 @@ def finance(request):
 
 @login_required
 def payment(request,pk):
+    if not request.user.has_perm('core.view_receivable'):raise PermissionDenied
     row=get_object_or_404(Receivable,pk=pk,company__in=companies(request.user))
     form=PaymentForm(request.POST or None,initial={'date':timezone.localdate(),'reference':uuid.uuid4()})
     if request.method=='POST':
-        admin_only(request.user)
+        if not request.user.has_perm('core.change_receivable'):raise PermissionDenied
         if form.is_valid():
             try:
                 receive(request.user,row,form.cleaned_data['amount'],form.cleaned_data['date'],str(form.cleaned_data['reference']))
@@ -223,6 +237,12 @@ def routine_detail(request,pk):
 @login_required
 def home(request):
     if 'date' in request.GET:
+        from .views import daily
+        return daily(request)
+    if not request.user.has_perm('core.view_receivable'):
+        from .logistics_views import manifests,production_actual
+        if request.user.has_perm('core.add_productionrecord'):return production_actual(request)
+        if request.user.has_perm('core.view_deliverymanifest'):return manifests(request)
         from .views import daily
         return daily(request)
     return dashboard(request)

@@ -47,6 +47,7 @@ def records(request,kind):
         for row in rows:
             current=Price.objects.filter(product=row,client__isnull=True,valid_from__lte=today).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=today))
             row.current_price=current.first().amount if current.count()==1 else None
+            row.gross_profit=row.current_price-row.production_cost if row.current_price is not None and row.production_cost is not None else None
     if kind=='clientes':
         from .management_services import balances
         overdue={r.client_id for r in balances(request.user) if r.days_late}
@@ -64,7 +65,7 @@ def order_detail(request,pk):
             if action=='info':
                 form=ProductionInfoForm(request.POST,instance=order)
                 if form.is_valid():
-                    workflow.update_info(request.user,order.pk,{key:form.cleaned_data[key] for key in ['shift','baker','driver','notes']},form.cleaned_data['reason'])
+                    workflow.update_info(request.user,order.pk,{key:form.cleaned_data[key] for key in ['shift','baker','separator','driver','notes']},form.cleaned_data['reason'])
                 else:return render(request,'core/order.html',dict(order=order,form=form,documents=Document.objects.filter(order=order)))
             elif action=='issue':
                 if request.POST.get('confirm')!='yes':raise ValidationError('Marque a confirmação da prévia antes de emitir.')
@@ -86,6 +87,8 @@ def order_detail(request,pk):
 @login_required
 def document(request,pk):
     doc=get_object_or_404(Document,pk=pk,company__in=companies(request.user))
+    allowed={str(pk) for pk in companies(request.user).values_list('pk',flat=True)}
+    if doc.company_scope and not set(doc.company_scope).issubset(allowed):raise PermissionDenied
     if not (request.user.has_perm('core.issue_document') or request.user.has_perm('core.close_month')):raise PermissionDenied
     if doc.superseded:return render(request,'core/doc_cancelled.html',{'doc':doc},status=409)
     if hashlib.sha256(bytes(doc.data)).hexdigest()!=doc.sha256:return HttpResponse('Integridade do documento divergente. Contate o responsável.',status=409)
@@ -162,3 +165,18 @@ def start_demo(request):
     day=timezone.localdate();prepare(request.user,day)
     messages.success(request,'Exemplos artificiais preparados. Preços e CNPJs continuam vazios até sua conferência.')
     return redirect('daily')
+
+@login_required
+def print_reference(request):
+    if not request.user.is_superuser:raise PermissionDenied
+    if request.method=='POST':
+        try:
+            if 'file' not in request.FILES:raise ValidationError('Selecione a planilha de automação.')
+            file=request.FILES['file']
+            if file.size>12*1024*1024 or not file.name.lower().endswith(('.xlsx','.xlsm')):raise ValidationError('Selecione XLSX/XLSM de até 12 MB.')
+            from .print_reference import load_company_reference
+            count=load_company_reference(request.user,file.read())
+            messages.success(request,f'{count} emissoras conferidas. Dados vazios foram preenchidos; nenhum pedido ou vínculo de cliente foi importado.')
+            return redirect('records',kind='empresas')
+        except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
+    return render(request,'core/print_reference.html')

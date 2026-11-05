@@ -13,6 +13,9 @@ class Company(Entity):
     code = models.CharField(max_length=20, unique=True)
     name = models.CharField(max_length=150)
     legal_name = models.CharField(max_length=200, blank=True)
+    address = models.TextField(blank=True)
+    phone = models.CharField(max_length=100, blank=True)
+    email = models.EmailField(blank=True)
     cnpj = models.CharField(max_length=14, null=True, blank=True, unique=True, validators=[RegexValidator(r'^\d{14}$')])
     active = models.BooleanField(default=True)
     def __str__(self): return self.name
@@ -29,6 +32,10 @@ class Client(Entity):
     address = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
+    legal_name = models.CharField(max_length=200, blank=True)
+    tax_id = models.CharField(max_length=14, blank=True, validators=[RegexValidator(r'^(?:\d{11}|\d{14})$', 'Informe CPF com 11 ou CNPJ com 14 dígitos, ou deixe pendente.')])
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=40, blank=True)
     def __str__(self): return self.name
 
 class Product(Entity):
@@ -36,6 +43,9 @@ class Product(Entity):
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=20, default='UN')
     active = models.BooleanField(default=True)
+    production_cost = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(production_cost__isnull=True)|Q(production_cost__gte=0), name='product_cost_positive')]
     def __str__(self): return self.name
 
 class Price(Entity):
@@ -77,9 +87,11 @@ class Order(Entity):
     shift = models.CharField(max_length=10,blank=True,choices=[('NOTURNO','Noturno'),('DIURNO','Diurno')])
     status = models.CharField(max_length=20,default='PRE_LANCADO',choices=[('PRE_LANCADO','Pré-lançado'),('CONFERIDO','Conferido'),('CANCELADO','Cancelado'),('EMITIDO','Documento emitido'),('ENTREGUE','Entrega confirmada'),('LIBERADO_FECHAMENTO','Liberado para fechamento'),('FECHADO','Fechado')])
     idempotency_key = models.CharField(max_length=250,unique=True)
+    preparation_rules = models.JSONField(default=list, blank=True)
     synthetic = models.BooleanField(default=True)
     baker = models.CharField(max_length=100, blank=True)
     driver = models.CharField(max_length=100, blank=True)
+    separator = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     issued_snapshot = models.JSONField(default=dict, blank=True)
     issued_at = models.DateTimeField(null=True, blank=True)
@@ -151,6 +163,7 @@ class Document(Entity):
     data = models.BinaryField()
     sha256 = models.CharField(max_length=64)
     layout = models.CharField(max_length=30,default='v1-homologacao')
+    company_scope = models.JSONField(default=list, blank=True)
     superseded = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -229,3 +242,132 @@ class StockMovement(Entity):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     class Meta:
         constraints = [models.CheckConstraint(condition=~Q(quantity=0), name='stock_nonzero')]
+
+
+class ProductionRecord(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    date = models.DateField(db_index=True)
+    shift = models.CharField(max_length=10, choices=[('NOTURNO','Noturno'),('DIURNO','Diurno')])
+    batch = models.CharField(max_length=80)
+    quantity = models.DecimalField(max_digits=15, decimal_places=3)
+    losses = models.DecimalField(max_digits=15, decimal_places=3, default=0)
+    unit = models.CharField(max_length=20)
+    cost_snapshot = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    baker = models.CharField(max_length=100)
+    notes = models.TextField(blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(quantity__gt=0), name='produced_positive'),
+            models.CheckConstraint(condition=Q(losses__gte=0)&Q(losses__lte=F('quantity')), name='production_losses'),
+            models.UniqueConstraint(fields=['company','product','date','shift','batch'], name='production_batch'),
+        ]
+
+
+class Driver(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=40, blank=True)
+    vehicle = models.CharField(max_length=100, blank=True)
+    active = models.BooleanField(default=True)
+    def __str__(self):return self.name
+
+
+class DeliveryRoute(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    name = models.CharField(max_length=150)
+    driver = models.ForeignKey(Driver, on_delete=models.PROTECT)
+    notes = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+    def __str__(self):return self.name
+
+
+class RouteStop(Entity):
+    route = models.ForeignKey(DeliveryRoute, on_delete=models.PROTECT, related_name='stops')
+    client = models.ForeignKey(Client, on_delete=models.PROTECT)
+    sequence = models.PositiveIntegerField()
+    instructions = models.TextField(blank=True)
+    class Meta:
+        ordering=['sequence']
+        constraints = [models.UniqueConstraint(fields=['route','sequence'],name='route_sequence'),
+                       models.UniqueConstraint(fields=['route','client'],name='route_client')]
+
+
+class DeliveryManifest(Entity):
+    route = models.ForeignKey(DeliveryRoute, on_delete=models.PROTECT)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    date = models.DateField()
+    driver_name = models.CharField(max_length=150)
+    vehicle = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['route','date'],name='manifest_route_date')]
+
+
+class ManifestLine(Entity):
+    manifest = models.ForeignKey(DeliveryManifest, on_delete=models.PROTECT, related_name='lines')
+    order = models.OneToOneField(Order, on_delete=models.PROTECT)
+    sequence = models.PositiveIntegerField()
+    client_name = models.CharField(max_length=200)
+    address = models.TextField(blank=True)
+    instructions = models.TextField(blank=True)
+    items_snapshot = models.JSONField(default=list)
+    amount_due = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    receivable = models.ForeignKey(Receivable, on_delete=models.PROTECT, null=True, blank=True)
+    reported_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    payment_reported = models.BooleanField(default=False)
+    payment_method = models.CharField(max_length=15, default='PRAZO', choices=[('PRAZO','Não pagou / a prazo'),('DINHEIRO','Dinheiro no malote'),('PIX','PIX informado'),('CARTAO','Cartão informado')])
+    delivery_status = models.CharField(max_length=15, default='PENDENTE', choices=[('PENDENTE','Pendente'),('ENTREGUE','Entregue'),('NAO_ENTREGUE','Não entregue')])
+    evidence = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        ordering=['sequence','id']
+        constraints = [models.CheckConstraint(condition=Q(reported_amount__gte=0),name='manifest_reported_positive')]
+
+
+class CashBag(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    manifest = models.OneToOneField(DeliveryManifest, on_delete=models.PROTECT, related_name='cash_bag')
+    reference = models.CharField(max_length=100)
+    declared = models.DecimalField(max_digits=15, decimal_places=2)
+    counted = models.DecimalField(max_digits=15, decimal_places=2)
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=15, choices=[('CONFERIDO','Conferido'),('DIVERGENTE','Divergente')])
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    checked_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(declared__gte=0)&Q(counted__gte=0),name='cashbag_positive'),
+                       models.UniqueConstraint(fields=['company','reference'],name='cashbag_reference')]
+
+
+class ClientStatement(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    client = models.ForeignKey(Client, on_delete=models.PROTECT)
+    start = models.DateField()
+    end = models.DateField()
+    total = models.DecimalField(max_digits=16, decimal_places=2)
+    snapshot = models.JSONField(default=dict)
+    document = models.OneToOneField(Document, on_delete=models.PROTECT)
+    status = models.CharField(max_length=15, default='RASCUNHO', choices=[('RASCUNHO','Pronto para enviar'),('ENVIADO','Enviado / aguardando cliente'),('APROVADO','Aprovado pelo cliente'),('REJEITADO','Cliente pediu revisão'),('CANCELADO','Cancelado')])
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approval_evidence = models.TextField(blank=True)
+    communication = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(end__gte=F('start')),name='statement_period'),
+                       models.CheckConstraint(condition=Q(total__gte=0),name='statement_total_positive')]
+
+
+class StatementLine(Entity):
+    statement = models.ForeignKey(ClientStatement, on_delete=models.PROTECT, related_name='lines')
+    order = models.ForeignKey(Order, on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=16, decimal_places=2)
+    active = models.BooleanField(default=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['order'],condition=Q(active=True),name='one_active_statement_per_order')]

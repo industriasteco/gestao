@@ -119,7 +119,7 @@ class Acceptance(TestCase):
         self.assertEqual(len(reader.pages),1)
         text=reader.pages[0].extract_text()
         company,customer=text.split('VIA CLIENTE',1)
-        self.assertNotIn('1.2500',company);self.assertIn('1.2500',customer)
+        self.assertNotIn('1,25',company);self.assertIn('1,25',customer)
         self.assertIn('SEM VALORES',company)
         # Two orders occupy exactly four receipts on one A4 page.
         other=Order.objects.create(company=self.co,client=self.client_record,date=self.day,slot='2',time=time(14),shift='DIURNO',idempotency_key='manual-2')

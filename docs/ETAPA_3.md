@@ -12,19 +12,35 @@ O teste local da planilha real cadastrou apenas cadastros/rotinas, com **0 pedid
 
 ## Validação
 
-57 testes PostgreSQL passaram: 42 anteriores e 15 novos, sem ignorados. Cobertura nova: importação sem pedidos/contas, idempotência, moda por dia, lacunas, agrupamento dos itens por cliente, preservação de ajustes, preços negociados e histórico, recebimentos parciais, sobrepagamento, datas futuras, estoque negativo/retroativo, isolamento por empresa, painel sem faturamento de teste, rotas e divergência entre vias. `check`, migrations sem alterações pendentes e `diff --check` aprovados.
+89 testes PostgreSQL passaram: 42 anteriores e 47 novos, sem ignorados. Cobertura nova: importação sem pedidos/contas, idempotência, moda por dia, lacunas, agrupamento dos itens por cliente, preservação de ajustes, preços negociados e histórico, recebimentos parciais, sobrepagamento, datas futuras, estoque negativo/retroativo, isolamento por empresa, painel sem faturamento de teste, rotas e divergência entre vias. `check`, migrations sem alterações pendentes e `diff --check` aprovados.
 
 ## Publicar em homologação
 
 1. Publicar o código revisado na branch usada pelo serviço Render.
-2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão de `0005` no deploy.
+2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0011` no deploy.
 3. Acessar o sistema com a conta existente. A página inicial abre o painel; `/?date=AAAA-MM-DD` mantém compatibilidade com a produção diária.
 4. Em Produtos, cadastrar preços confirmados. Na ficha do cliente, definir exceções negociadas.
 5. Em Rotinas, analisar a planilha original, selecionar TECO e a data de início futura. Confirmar que a ação cadastra somente clientes/produtos/rotinas.
 6. Conferir horários, observações e itens ambíguos. Preparar uma nova data apenas quando desejar criar os novos pedidos.
 
-A migração é aditiva. Não apaga pedidos já existentes na hospedagem e não altera preços existentes. Os dados privados não são enviados ao GitHub. Não compartilhar chaves do Render, banco ou senhas pelo chat.
+As migrations são aditivas. Não apaga pedidos já existentes na hospedagem e não altera preços existentes. Os dados privados não são enviados ao GitHub. Não compartilhar chaves do Render, banco ou senhas pelo chat.
 
 ## Limites operacionais
 
 O fluxo comercial existente continua em homologação, sem cobrança real. A autorização para vendas reais exige uma etapa própria; os novos painéis não substituem essa validação. Faturamento/rankings consideram apenas pedidos reais emitidos com preço congelado, excluindo testes; contas a receber são registros manuais confirmados e independentes dos pedidos nesta versão. Estoque não tem ficha técnica nem baixa automática. Integração fiscal, conciliação bancária, backup durável agendado e MFA continuam pendentes.
+
+
+## Ampliação operacional
+
+Lotes de produção realizada, perdas, responsável e custo preservado; comparação com o planejado por empresa/produto/unidade. Custo, venda e margem bruta na ficha do produto. Rotas, motoristas, paradas e romaneios PDF preservados, com retorno por cliente. Malotes com valor declarado versus contado e registro de diferenças. Nenhuma conta baixa quando há divergência, pedido de teste ou ausência de vínculo financeiro.
+
+Perfis individuais em Equipe: Produção registra os lotes; Entregas relata a rota sem conferir malote; Financeiro registra contas, confere malotes e faz fechamento. Senhas não entram em auditoria. O fechamento por cliente usa período livre, entregas confirmadas e preços congelados; PDF preservado, envio registrado manualmente, aprovação com evidência e CSV de apoio ao ambiente fiscal. Correções após aprovação e emissão fiscal integrada permanecem fora desta etapa.
+
+Os 24 testes operacionais adicionais cobrem produção/custos/perdas, comparação, romaneios idempotentes e snapshots, uma rota por pedido, dinheiro informado versus conferido, divergências, PIX sem caixa fictício, PDFs, perfis, fechamento por período, duplicidade, aprovação, exportação e proteção do pedido incluído no fechamento.
+
+
+## Fluxo da automação e notinhas
+
+[Referência de impressão](IMPRESSAO_REFERENCIA.md) registra o fluxo conferido no XLSM e a escolha expressa do usuário pelo IBIS retrato frente/verso. Finalizar dia agrupa os pedidos emitidos num PDF com TECO/NONA e gera outro com produção geral/noturna/diurna. Endereço/telefone/e-mail da emissora e responsáveis ficam preservados na emissão. Arquivos mistos exigem acesso a todas as empresas. Quantidade zero fica fora; dados incompletos revertem o lote.
+
+A suite final tem **89 testes**, sem ignorados. Os oito testes adicionais desta etapa verificam agrupamento manual conforme a automação, finalização multimarcas, escopo do PDF, falha atômica, pré-requisitos, quantidade zero/responsáveis, paginação/totais por parte e carregamento apenas dos dados das emissoras. Após o ajuste final da grade, 18 testes de impressão/fechamento foram repetidos com sucesso. As 13 telas principais foram abertas em navegador no tamanho de celular, sem erro HTTP, JavaScript ou transbordamento horizontal. A impressão física permanece sujeita à conferência das amostras.

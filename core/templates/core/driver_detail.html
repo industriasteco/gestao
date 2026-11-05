@@ -1,0 +1,1 @@
+{% extends 'core/base.html' %}{% block content %}<p><a href="/rotas/">← Rotas e motoristas</a></p><h1>{{ driver.name }}</h1><section class="card">{% if user.is_superuser %}<form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button>Salvar motorista</button></form>{% else %}<p>{{ driver.vehicle }} · {{ driver.phone }}</p>{% endif %}</section>{% endblock %}

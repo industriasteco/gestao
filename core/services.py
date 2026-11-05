@@ -32,17 +32,18 @@ def prepare(user, day):
         if exception and exception.suspended:continue
         if not rule.client.active or not rule.product.active or not rule.company.active:continue
         if rule.client.company_id!=rule.company_id or rule.product.company_id!=rule.company_id:raise ValidationError('Empresa incompatível')
-        if rule.source_key:
-            key=f'planned:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}'
-        else:
-            key=f'{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.pk}:{rule.version}'
+        key=f'planned:{rule.company_id}:{rule.client_id}:{day}:{rule.slot}:{rule.time}:{rule.shift}'
         groups[key].append((rule,exception))
     count=0
     for key,group in groups.items():
         rule=group[0][0]
-        if any(r.time!=rule.time or r.shift!=rule.shift for r,_ in group):
-            raise ValidationError('Itens da mesma entrega precisam do mesmo horário e turno. Para outra entrega, use uma identificação diferente.')
-        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,date=day,slot=rule.slot,time=rule.time,shift=rule.shift,notes='\n'.join(dict.fromkeys(r.notes for r,_ in group if r.notes))))
+        rule_ids=[str(r.pk) for r,_ in group]
+        existing=Order.objects.filter(company=rule.company,client=rule.client,date=day)
+        # Compatibilidade com os pedidos anteriores e rastreio de todos os fixos
+        # agrupados: editar horário/turno não cria outra cópia na mesma data.
+        if existing.filter(recurrence_id__in=rule_ids).exists():continue
+        if any(existing.filter(preparation_rules__contains=[pk]).exists() for pk in rule_ids):continue
+        order,created=Order.objects.get_or_create(idempotency_key=key,defaults=dict(company=rule.company,client=rule.client,recurrence=rule,preparation_rules=rule_ids,date=day,slot=rule.slot,time=rule.time,shift=rule.shift,notes='\n'.join(dict.fromkeys(r.notes for r,_ in group if r.notes))))
         if not created:continue
         lines={}
         for rule,exception in group:
@@ -66,7 +67,7 @@ def production(orders):
 
 @transaction.atomic
 def check_production(user,day):
-    orders=Order.objects.select_for_update().filter(date=day,company__in=companies(user),status__in=['PRE_LANCADO','CONFERIDO'])
+    orders=Order.objects.select_for_update().filter(date=day,company__in=companies(user),status__in=['PRE_LANCADO','CONFERIDO'],pk__in=OrderItem.objects.filter(quantity__gt=0).values('order_id'))
     for order in orders:
         authorize(user,order.company,'core.check_production')
         if not order.shift or not order.items.filter(quantity__gt=0).exists(): raise ValidationError('Turno ou itens ausentes')

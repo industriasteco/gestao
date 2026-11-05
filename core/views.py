@@ -15,6 +15,17 @@ def daily(request):
     except ValueError: return render(request,'core/error.html',status=400)
     if request.method=='POST':
         try:
+            if request.POST.get('action')=='responsibles':
+                from .forms import ShiftResponsiblesForm
+                from .day_finalization import assign_shift_responsibles
+                form=ShiftResponsiblesForm(request.POST)
+                if not form.is_valid():raise ValidationError('Confira os nomes dos responsáveis (até 100 caracteres).')
+                count=assign_shift_responsibles(request.user,day,**form.cleaned_data)
+                messages.success(request,f'Responsáveis atualizados em {count} pedidos ainda não emitidos.')
+            if request.POST.get('action')=='finalize':
+                from .day_finalization import finalize_day
+                docs=finalize_day(request.user,day)
+                return render(request,'core/day_finalized.html',{'day':day,'receipts':docs[0],'production_doc':docs[1]})
             if request.POST.get('action')=='prepare': messages.success(request,f'{prepare(request.user,day)} pedidos preparados. Nenhuma emissão realizada.')
             elif request.POST.get('action')=='adjust': adjust(request.user,request.POST['order'],Decimal(request.POST['quantity']),request.POST.get('reason',''),request.POST.get('item') or None)
             elif request.POST.get('action')=='cancel': cancel_workflow(request.user,request.POST['order'],request.POST.get('reason',''))

@@ -3,8 +3,26 @@ from django.urls import path,include
 from core.views import daily,staging
 from core import operator_views as op
 from core import management_views as mg
+from core import logistics_views as lg
+from core import statement_views as st
 from core.access import first_access
 urlpatterns=[
+    path('modelo-impressao/',op.print_reference,name='print_reference'),
+    path('fechamentos-clientes/',st.statements,name='statements'),
+    path('fechamentos-clientes/<uuid:pk>/',st.statement_detail,name='statement_detail'),
+    path('fechamentos-clientes/<uuid:pk>/pdf/',st.statement_document,name='statement_document'),
+    path('fechamentos-clientes/<uuid:pk>/exportar/',st.statement_export,name='statement_export'),
+
+    path('equipe/',lg.team,name='team'),
+    path('producao/realizada/',lg.production_actual,name='production_actual'),
+    path('rotas/',lg.routes,name='routes'),
+    path('rotas/<uuid:pk>/',lg.route_detail,name='route_detail'),
+    path('motoristas/<uuid:pk>/',lg.driver_detail,name='driver_detail'),
+    path('romaneios/',lg.manifests,name='manifests'),
+    path('romaneios/<uuid:pk>/',lg.manifest_detail,name='manifest_detail'),
+    path('romaneios/<uuid:pk>/pdf/',lg.manifest_pdf,name='manifest_pdf'),
+    path('entregas/<uuid:pk>/',lg.manifest_line,name='manifest_line'),
+
     path('painel/',mg.dashboard,name='dashboard'),
     path('clientes/<uuid:pk>/',mg.client_detail,name='client_detail'),
     path('produtos/<uuid:pk>/',mg.product_detail,name='product_detail'),

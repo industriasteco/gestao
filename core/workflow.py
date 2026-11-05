@@ -51,8 +51,10 @@ def issue(user,order_id):
     if not items:raise ValidationError('Pedido sem itens positivos.')
     # CNPJ intentionally stays missing in homologation; never invent a tax identity.
     number=f'{order.company.code}-TESTE-{str(order.pk)[:12].upper()}'
-    snapshot=dict(company_code=order.company.code,company_name=order.company.name,cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
-    data=pdf.receipts([snapshot]) # failure rolls back all state and snapshots
+    snapshot=dict(company_code=order.company.code,company_name=order.company.name,legal_name=order.company.legal_name,company_address=order.company.address,company_phone=order.company.phone,company_email=order.company.email,client_address=order.client.address,client_contact=order.client.phone or order.client.email,baker=order.baker,separator=order.separator,shift=order.shift,notes=order.notes,cnpj=order.company.cnpj,client_name=order.client.name,date=str(order.date),slot=order.slot,time=str(order.time)[:5],number=number,items=items,total=str(total),ibis=order.client.name.strip().upper()=='IBIS')
+    try:data=pdf.receipts([snapshot])
+    except ValueError as exc:raise ValidationError(str(exc)) from exc
+    # # failure rolls back all state and snapshots
     document=store_document(order.company,f'order:{order.pk}:v1','NOTINHAS',data,order)
     order.issued_snapshot=snapshot;order.commercial_number=number;order.issued_at=timezone.now();order.status='EMITIDO';order.save()
     event(user,order,'EMITIR_TESTE',{'status':'CONFERIDO'},{'status':'EMITIDO','sha256':document.sha256})
@@ -86,17 +88,19 @@ def cancel(user,order_id,reason):
     if order.status in ('EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO'):authorize(user,order.company,'core.cancel_issued')
     with transaction.atomic():
         order=Order.objects.select_for_update().get(pk=order_id)
+        if StatementLine.objects.filter(order=order,active=True).exists():raise ValidationError('Pedido incluído em fechamento de cliente. Revise o fechamento antes de cancelar.')
         if order.status=='FECHADO':raise ValidationError('Fechamento aprovado: correção comercial exige processo separado.')
         if order.status=='CANCELADO':return
         before=order.status;order.status='CANCELADO';order.save(update_fields=['status'])
         Document.objects.filter(order=order).update(superseded=True)
         Document.objects.filter(company=order.company,key__startswith=f'daily:{order.company_id}:{order.date}:').update(superseded=True)
+        Document.objects.filter(company_scope__contains=[str(order.company_id)],key__startswith=f'finalize:{order.date}:').update(superseded=True)
         event(user,order,'CANCELAR',{'status':before},{'status':'CANCELADO'},reason)
 
 def eligible(user,company,client,month):
     authorize(user,company,'core.close_month')
     if client.company_id!=company.pk:raise ValidationError('Cliente de outra empresa.')
-    return Order.objects.filter(company=company,client=client,date__year=month.year,date__month=month.month,status='LIBERADO_FECHAMENTO',delivered_at__isnull=False,synthetic=True).exclude(issued_snapshot={}).order_by('date','time','pk')
+    return Order.objects.filter(company=company,client=client,date__year=month.year,date__month=month.month,status='LIBERADO_FECHAMENTO',delivered_at__isnull=False,synthetic=True).exclude(issued_snapshot={}).exclude(statementline__active=True).order_by('date','time','pk')
 
 def close(user,company,client,month):
     authorize(user,company,'core.close_month')

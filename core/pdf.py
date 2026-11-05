@@ -14,18 +14,22 @@ from django.conf import settings
 WIDTH,HEIGHT=A4
 
 def logo(code):
-    return settings.BASE_DIR/'core/assets'/({'TECO':'teco.png','NONA':'nona.png'}.get(code,'SEM_MARCA_APROVADA'))
+    from .receipt_layout import brand_code
+    return settings.BASE_DIR/'core/assets'/({'TECO':'teco.png','NONA':'nona.png'}.get(brand_code(code),'SEM_MARCA_APROVADA'))
 
 def header(c,s,x,y,width,customer):
     path=logo(s['company_code'])
     if path.exists(): c.drawImage(ImageReader(str(path)),x,y-20*mm,width=23*mm,height=20*mm,preserveAspectRatio=True,mask='auto')
-    c.setFont('Helvetica-Bold',9);c.drawString(x+25*mm,y-4*mm,s['company_name'][:38])
+    c.setFont('Helvetica-Bold',9);c.drawString(x+25*mm,y-4*mm,s['company_name'][:70])
     c.setFont('Helvetica',7)
     c.drawString(x+25*mm,y-9*mm,'CNPJ: '+(s.get('cnpj') or 'PENDENTE DE VALIDACAO'))
     c.drawString(x+25*mm,y-14*mm,'VIA CLIENTE' if customer else 'VIA EMPRESA / SEM VALORES')
     c.setFont('Helvetica-Bold',8);c.drawString(x,y-25*mm,s['client_name'][:60])
     c.setFont('Helvetica',7);c.drawString(x,y-30*mm,f"{s['number']} | {s['date']} | {s['slot']} {s['time']}")
     c.drawString(x,y-35*mm,'HOMOLOGACAO - NAO COBRAR - DOCUMENTO NAO FISCAL')
+    c.setFont('Helvetica',6)
+    c.drawString(x,y-39*mm,('Padeiro: '+s.get('baker','')+' | Separacao: '+s.get('separator',''))[:140])
+    c.drawString(x,y-43*mm,s.get('client_address','')[:160])
 
 def receipts(snapshots):
     buffer=BytesIO();c=canvas.Canvas(buffer,pagesize=A4,pageCompression=0,invariant=1)
@@ -57,15 +61,11 @@ def receipts(snapshots):
             else:
                 for customer in (False,True):
                     if slot==4:c.showPage();slot=0
-                    x=(5+(slot%2)*105)*mm;y=HEIGHT-(5+(slot//2)*148)*mm
-                    header(c,s,x,y,100*mm,customer)
-                    c.setFont('Helvetica',7);iy=y-44*mm
-                    for item in items:
-                        c.drawString(x,iy,f"{item['quantity']} {item['unit']} | {item['name']}"[:59]);iy-=4*mm
-                        if customer:c.drawString(x+3*mm,iy,f"Unit. R$ {item['price']} | Total R$ {item['total']}");iy-=4*mm
-                    c.setFont('Helvetica-Bold',7)
-                    if customer:c.drawString(x,y-133*mm,'TOTAL PEDIDO R$ '+s['total'])
-                    c.drawString(x,y-138*mm,f'Parte {part}/{len(chunks)} - NAO COBRAR')
+                    from .receipt_layout import common_receipt
+                    margin=3.5*mm;gap_x=12;gap_y=16
+                    width=(WIDTH-2*margin-gap_x)/2;height=(HEIGHT-2*margin-gap_y)/2
+                    x=margin+(slot%2)*(width+gap_x);y=HEIGHT-margin-(slot//2)*(height+gap_y)
+                    common_receipt(c,s,items,part,len(chunks),x,y,width,height,customer)
                     slot+=1
         # Prevent an accidental fifth receipt overflowing when switching to IBIS.
     if slot:c.showPage()

@@ -126,7 +126,7 @@ class ManagementTests(TestCase):
         Membership.objects.create(user=viewer,company=other)
         self.client.force_login(viewer)
         self.assertEqual(self.client.get(f'/clientes/{self.customer.pk}/').status_code,404)
-        self.assertNotContains(self.client.get('/financeiro/'),'TESTE')
+        self.assertEqual(self.client.get('/financeiro/').status_code,403)
         self.assertEqual(self.client.post('/financeiro/',{}).status_code,403)
         self.assertEqual(self.client.get('/rotinas/importar/').status_code,403)
 
@@ -175,3 +175,12 @@ class ManagementTests(TestCase):
         Recurrence.objects.update(time=time(5))
         self.assertEqual(prepare(self.user,date(2026,11,5)),0)
         self.assertEqual(Order.objects.count(),1)
+
+    def test_manually_registered_rules_group_like_the_excel_automation(self):
+        from datetime import time
+        Recurrence.objects.create(company=self.co,client=self.customer,product=self.product,quantity=10,slot='1',time=time(6),shift='NOTURNO',weekdays=[4],valid_from=date(2026,11,1),active=True)
+        other=Product.objects.create(company=self.co,name='Outro produto artificial')
+        Recurrence.objects.create(company=self.co,client=self.customer,product=other,quantity=5,slot='1',time=time(6),shift='NOTURNO',weekdays=[4],valid_from=date(2026,11,1),active=True)
+        self.assertEqual(prepare(self.user,date(2026,11,5)),1)
+        self.assertEqual(Order.objects.get().items.count(),2)
+        self.assertEqual(prepare(self.user,date(2026,11,5)),0)
