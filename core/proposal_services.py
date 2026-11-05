@@ -4,9 +4,8 @@ from datetime import timedelta
 from decimal import Decimal,ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
-from .models import Company,CommercialProposal,ProposalItem,ProposalProfile,Document,Price
-from .services import authorize
+from .models import Company,CommercialProposal,ProposalItem,ProposalProfile,Document
+from .services import authorize,prices_on
 from .receipt_layout import brand_code
 from .workflow import event
 
@@ -42,7 +41,7 @@ def resolve_lines(company,client,day,lines):
             if product.company_id!=company.pk or not product.active:raise ValidationError('Produto inativo ou de outra empresa.')
             description=description or product.name;unit=unit or product.unit
             if amount is None:
-                prices=Price.objects.filter(company=company,product=product,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day))
+                prices=prices_on(day).filter(company=company,product=product)
                 special=prices.filter(client=client) if client else prices.none()
                 selected=special if special.exists() else prices.filter(client__isnull=True)
                 if selected.count()!=1:raise ValidationError('Preço ausente ou sobreposto. Informe o valor unitário negociado para cada item.')

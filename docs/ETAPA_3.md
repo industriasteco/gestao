@@ -17,7 +17,7 @@ O teste local da planilha real cadastrou apenas cadastros/rotinas, com **0 pedid
 ## Publicar em homologação
 
 1. Publicar o código revisado na branch usada pelo serviço Render.
-2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0017` no deploy.
+2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0018` no deploy.
 3. Acessar o sistema com a conta existente. A página inicial abre o painel; `/?date=AAAA-MM-DD` mantém compatibilidade com a produção diária.
 4. Em Produtos, cadastrar preços confirmados. Na ficha do cliente, definir exceções negociadas.
 5. Em Rotinas, analisar a planilha original, selecionar TECO e a data de início futura. Confirmar que a ação cadastra somente clientes/produtos/rotinas.
@@ -62,3 +62,7 @@ Campo de número/referência da OC no pedido e no fechamento por período. Prese
 ## Propostas comerciais
 
 [Fluxo e publicação](PROPOSTAS_COMERCIAIS.md). Cadastro de propostas/serviços, PDF A4 baseado no DOCX, marca por empresa, cabeçalhos privados separados, preços negociados, revisão e resposta manual. O usuário confirmou os dados do novo modelo para o cabeçalho das propostas da NONA. Nenhum pedido ou cobrança é criado por proposta. Migration `0017` aditiva; perfil Comercial na equipe. **135 testes** na suite completa, incluindo 17 cenários de propostas, sem ignorados.
+
+## Preços sem datas e cadastros no pedido
+
+[Fluxo de lançamento](PEDIDOS_E_PRECOS.md). Troca direta do preço padrão ou negociado, sem datas no formulário e sem bloqueio por alteração anterior no mesmo dia. Histórico automático, preços futuros anteriores substituídos apenas para a condição editada e documentos emitidos preservados. Migration `0018` adiciona a marca de substituição sem apagar preços existentes. Novo cliente/produto em caixas dentro do pedido, com seleção automática e preservação do rascunho; repetição da mesma solicitação não duplica cadastros. **149 testes**, incluindo oito cenários de preço e seis de cadastro durante o pedido, sem ignorados.

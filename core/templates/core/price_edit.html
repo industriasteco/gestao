@@ -1,0 +1,12 @@
+{% extends 'core/base.html' %}
+{% load erp %}
+{% block content %}
+<p><a href="{% url 'records' 'precos' %}">← Preços dos produtos</a></p>
+<div class="page-heading"><div><p class="eyebrow">{{ price.company }}</p><h1>Alterar preço</h1><p class="muted">{{ price.product }} · {{ price.client|default:'Preço padrão para todos os clientes' }}</p></div></div>
+<section class="card">
+  <h2>Preço atual: {{ amount|brl4 }}</h2>
+  <p>Informe o novo valor e salve. Ele fica ativo até a próxima alteração.</p>
+  <form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button>Salvar novo preço</button></form>
+  <p class="subtitle">Notinhas, propostas e fechamentos já gerados mantêm seus valores originais.</p>
+</section>
+{% endblock %}

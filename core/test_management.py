@@ -84,7 +84,7 @@ class ManagementTests(TestCase):
         with self.assertRaises(ValidationError):set_price(self.user,self.co,self.product,Decimal('4'),date(2026,2,1))
 
     def test_product_price_can_be_entered_directly_in_product_form(self):
-        response=self.client.post('/cadastros/produtos/',{'company':str(self.co.pk),'name':'Novo pão','unit':'UN','amount':'2.50','valid_from':str(self.today)})
+        response=self.client.post('/cadastros/produtos/',{'company':str(self.co.pk),'name':'Novo pão','unit':'UN','amount':'2.50'})
         self.assertEqual(response.status_code,302)
         product=Product.objects.get(name='Novo pão')
         self.assertEqual(Price.objects.get(product=product).amount,Decimal('2.5'))

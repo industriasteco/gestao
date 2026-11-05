@@ -10,10 +10,10 @@ from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from .models import *
-from .forms import (ClientForm, ProductForm, InlinePriceForm, ReceivableForm, PaymentForm,
+from .forms import (ClientForm, ProductForm, InlinePriceForm, PriceAmountForm, ReceivableForm, PaymentForm,
                     StockItemForm, StockMovementForm, WorkbookForm, RecurrenceForm)
-from .services import companies, authorize
-from .management_services import balances, receive, move_stock, set_price
+from .services import companies, authorize, prices_on
+from .management_services import balances, receive, move_stock, set_current_price
 from .workflow import event
 
 
@@ -92,7 +92,7 @@ def dashboard(request):
 def client_detail(request,pk):
     client=get_object_or_404(Client,pk=pk,company__in=companies(request.user))
     edit=ClientForm(instance=client,user=request.user)
-    price=InlinePriceForm(company=client.company,initial={'valid_from':timezone.localdate()})
+    price=InlinePriceForm(company=client.company)
     if request.method=='POST':
         admin_only(request.user)
         if request.POST.get('action')=='edit':
@@ -104,14 +104,15 @@ def client_detail(request,pk):
             price=InlinePriceForm(request.POST,company=client.company)
             if price.is_valid():
                 try:
-                    set_price(request.user,client.company,price.cleaned_data['product'],price.cleaned_data['amount'],price.cleaned_data['valid_from'],client)
+                    set_current_price(request.user,client.company,price.cleaned_data['product'],price.cleaned_data['amount'],client)
                     messages.success(request,'Preço negociado salvo com histórico.');return redirect('client_detail',pk=pk)
                 except ValidationError as exc:price.add_error(None,exc)
     accounts=[r for r in balances(request.user) if r.client_id==client.pk] if request.user.has_perm('core.view_receivable') else []
     overdue=[r for r in accounts if r.days_late]
     status='Inadimplente' if overdue else ('Adimplente' if accounts else 'Sem histórico financeiro')
     return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,
-        status=status,accounts=accounts,pending=Candidate.objects.filter(category='ROTINA_A_CONFERIR',raw__client=' '.join(client.name.upper().split())) if request.user.is_superuser else Candidate.objects.none(),prices=Price.objects.filter(client=client).select_related('product').order_by('-valid_from'),
+        status=status,accounts=accounts,pending=Candidate.objects.filter(category='ROTINA_A_CONFERIR',raw__client=' '.join(client.name.upper().split())) if request.user.is_superuser else Candidate.objects.none(),prices=prices_on(timezone.localdate()).filter(client=client).select_related('product').order_by('product__name'),
+        price_history=Price.objects.filter(client=client).select_related('product').order_by('-valid_from','product__name'),today=timezone.localdate(),
         rules=Recurrence.objects.filter(client=client).select_related('product').order_by('product__name','time'),
         orders=Order.objects.filter(client=client).order_by('-date')[:20],
         events=Audit.objects.filter(Q(entity=str(client.pk))|Q(entity__in=[str(pk) for pk in Price.objects.filter(client=client).values_list('id',flat=True)])).order_by('-at')[:30]))
@@ -120,7 +121,9 @@ def client_detail(request,pk):
 @login_required
 def product_detail(request,pk):
     product=get_object_or_404(Product,pk=pk,company__in=companies(request.user))
-    form=ProductForm(request.POST or None,instance=product,user=request.user)
+    current=prices_on(timezone.localdate()).filter(product=product,client__isnull=True)
+    sale=current.first().amount if current.count()==1 else None
+    form=ProductForm(request.POST or None,instance=product,user=request.user,initial={'amount':sale})
     form.fields['company'].disabled=True
     if request.method=='POST':
         admin_only(request.user)
@@ -129,18 +132,30 @@ def product_detail(request,pk):
                 with transaction.atomic():
                     product=form.save()
                     if form.cleaned_data.get('amount') is not None:
-                        set_price(request.user,product.company,product,form.cleaned_data['amount'],form.cleaned_data['valid_from'])
+                        set_current_price(request.user,product.company,product,form.cleaned_data['amount'])
                     event(request.user,product,'EDITAR_PRODUTO')
                 messages.success(request,'Produto e preço salvos.');return redirect('product_detail',pk=pk)
             except ValidationError as exc:form.add_error(None,exc)
-    from .services import price_for
-    today=timezone.localdate()
-    current=Price.objects.filter(product=product,client__isnull=True,valid_from__lte=today).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=today))
-    sale=current.first().amount if current.count()==1 else None
     profit=sale-product.production_cost if sale is not None and product.production_cost is not None else None
     margin=(profit/sale*100) if profit is not None and sale else None
     return render(request,'core/product_detail.html',dict(product=product,form=form,sale=sale,profit=profit,margin=margin,
-        prices=Price.objects.filter(product=product).select_related('client').order_by('-valid_from')))
+        prices=Price.objects.filter(product=product).select_related('client').order_by('-valid_from'),today=timezone.localdate()))
+
+
+@login_required
+def price_edit(request,pk):
+    admin_only(request.user)
+    price=get_object_or_404(Price.objects.select_related('company','product','client'),pk=pk,company__in=companies(request.user))
+    current=prices_on(timezone.localdate()).filter(company=price.company,product=price.product,client=price.client)
+    amount=current.get().amount if current.count()==1 else None
+    form=PriceAmountForm(request.POST or None,initial={'amount':amount})
+    if request.method=='POST' and form.is_valid():
+        try:
+            set_current_price(request.user,price.company,price.product,form.cleaned_data['amount'],price.client)
+            messages.success(request,'Preço atualizado. O novo valor fica ativo até você alterá-lo novamente.')
+            return redirect('records',kind='precos')
+        except ValidationError as exc:form.add_error(None,exc)
+    return render(request,'core/price_edit.html',{'price':price,'amount':amount,'form':form})
 
 
 @login_required

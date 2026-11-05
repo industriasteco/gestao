@@ -3,13 +3,16 @@ from datetime import date
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError,PermissionDenied
 from django.db import transaction
-from django.http import HttpResponse,FileResponse
+from django.http import HttpResponse,FileResponse,JsonResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import render,redirect,get_object_or_404
 from django.contrib import messages
 from django.urls import reverse
 from io import BytesIO
 from .models import *
-from .services import companies,authorize,require,activate
+from .services import companies,authorize,require,activate,prices_on
+from django.utils import timezone
+from .management_services import set_current_price
 from .forms import *
 from . import workflow
 
@@ -30,22 +33,29 @@ def records(request,kind):
             return redirect('records',kind=kind)
         form=form_type(request.POST,user=request.user)
         if form.is_valid():
-            with transaction.atomic():
-                obj=form.save()
-                if kind=='produtos' and form.cleaned_data.get('amount') is not None:
-                    from .management_services import set_price
-                    set_price(request.user,obj.company,obj,form.cleaned_data['amount'],form.cleaned_data['valid_from'])
-                workflow.event(request.user,obj,'CADASTRAR',after={k:str(v) for k,v in form.cleaned_data.items()})
-            messages.success(request,'Cadastro salvo. Nenhum documento ou cobrança criado.')
-            return redirect('records',kind=kind)
+            try:
+                with transaction.atomic():
+                    if kind=='precos':
+                        data=form.cleaned_data
+                        obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'))
+                    else:
+                        obj=form.save()
+                        if kind=='produtos' and form.cleaned_data.get('amount') is not None:
+                            set_current_price(request.user,obj.company,obj,form.cleaned_data['amount'])
+                    workflow.event(request.user,obj,'CADASTRAR',after={k:str(v) for k,v in form.cleaned_data.items()})
+                messages.success(request,'Preço atual salvo.' if kind=='precos' else 'Cadastro salvo. Nenhum documento ou cobrança criado.')
+                return redirect('records',kind=kind)
+            except ValidationError as exc:form.add_error(None,exc)
     else:form=form_type(user=request.user)
     rows=companies(request.user) if model is Company else model.objects.filter(company__in=companies(request.user))
+    today=timezone.localdate()
+    price_history=None
+    if kind=='precos':
+        price_history=rows.select_related('product','client','company').order_by('-valid_from','product__name')
+        rows=prices_on(today).filter(company__in=companies(request.user)).select_related('product','client','company').order_by('company__name','product__name','client__name')
     if kind=='produtos':
-        from django.utils import timezone
-        from django.db.models import Q
-        today=timezone.localdate()
         for row in rows:
-            current=Price.objects.filter(product=row,client__isnull=True,valid_from__lte=today).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=today))
+            current=prices_on(today).filter(product=row,client__isnull=True)
             row.current_price=current.first().amount if current.count()==1 else None
             row.gross_profit=row.current_price-row.production_cost if row.current_price is not None and row.production_cost is not None else None
     if kind=='clientes':
@@ -53,7 +63,7 @@ def records(request,kind):
         overdue={r.client_id for r in balances(request.user) if r.days_late}
         known={r.client_id for r in balances(request.user)}
         for row in rows:row.financial_status='Inadimplente' if row.pk in overdue else ('Adimplente' if row.pk in known else 'Sem histórico financeiro')
-    return render(request,'core/records.html',dict(kind=kind,rows=rows,form=form,options=options))
+    return render(request,'core/records.html',dict(kind=kind,rows=rows,form=form,options=options,price_history=price_history,today=today))
 
 @login_required
 def order_detail(request,pk):
@@ -151,7 +161,43 @@ def new_order(request):
                 elif order.company_id!=company.pk:raise ValidationError('Chave já usada para outra empresa.')
             return redirect('order',pk=order.pk)
         except ValidationError as e:form.add_error(None,e)
-    return render(request,'core/new_order.html',{'form':form,'items':items})
+    return render(request,'core/new_order.html',{'form':form,'items':items,
+        'quick_client':ClientForm(user=request.user,prefix='quick_client'),
+        'quick_product':ProductForm(user=request.user,prefix='quick_product')})
+
+
+@login_required
+@require_POST
+def quick_record(request,kind):
+    """Cadastros persistentes feitos sem sair do rascunho de pedido."""
+    import uuid
+    if not request.user.is_superuser:raise PermissionDenied
+    options={'clientes':(Client,ClientForm,'quick_client'),'produtos':(Product,ProductForm,'quick_product')}
+    if kind not in options:return JsonResponse({'message':'Cadastro indisponível.'},status=404)
+    model,form_type,prefix=options[kind]
+    form=form_type(request.POST,user=request.user,prefix=prefix)
+    try:key=uuid.UUID(request.POST.get('request_key',''))
+    except (ValueError,TypeError,AttributeError):return JsonResponse({'message':'Reabra o cadastro para tentar novamente.'},status=400)
+    if not form.is_valid():return JsonResponse({'errors':form.errors.get_json_data()},status=400)
+    company=form.cleaned_data['company']
+    values={name:str(value) if value is not None else '' for name,value in form.cleaned_data.items()}
+    created=False
+    try:
+        with transaction.atomic():
+            Company.objects.select_for_update().get(pk=company.pk)
+            obj=model.objects.filter(pk=key).first()
+            if obj:
+                original=Audit.objects.filter(actor=request.user,entity=str(key),action='CADASTRO_RAPIDO',after__kind=kind).first()
+                if obj.company_id!=company.pk or not original or original.after.get('values')!=values:
+                    return JsonResponse({'message':'O cadastro anterior já foi salvo com outros dados. Para cadastrar estes novos dados, confira e clique em salvar novamente.'},status=409)
+            else:
+                obj=form.save(commit=False);obj.pk=key;obj.full_clean();obj.save()
+                if kind=='produtos' and form.cleaned_data.get('amount') is not None:
+                    set_current_price(request.user,company,obj,form.cleaned_data['amount'])
+                workflow.event(request.user,obj,'CADASTRO_RAPIDO',after={'kind':kind,'values':values})
+                created=True
+    except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
+    return JsonResponse({'record':{'id':str(obj.pk),'name':obj.name,'company':str(obj.company_id)},'created':created},status=201 if created else 200)
 
 @login_required
 def start_demo(request):

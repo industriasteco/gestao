@@ -1,6 +1,5 @@
 from decimal import Decimal
 from django.utils import timezone
-from django.db.models import Q
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import *
@@ -34,28 +33,19 @@ class ClientForm(ScopedForm):
 
 class ProductForm(ScopedForm):
     amount=forms.DecimalField(label='Valor de venda padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
-    valid_from=forms.DateField(label='Preço válido a partir de', required=False, initial=timezone.localdate, widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
-    def clean(self):
-        data=super().clean()
-        if data.get('amount') is not None and not data.get('valid_from'):
-            self.add_error('valid_from','Informe a data de vigência do preço.')
-        return data
+    production_cost=forms.DecimalField(label='Custo de produção por unidade (R$)',required=False,min_value=0,max_digits=15,decimal_places=4)
     class Meta:
         model=Product;fields=['company','name','unit','production_cost']
         labels={'company':'Empresa','name':'Nome do produto','unit':'Unidade (UN, KG...)','production_cost':'Custo de produção por unidade (R$)'}
 
 class PriceForm(ScopedForm):
+    amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
     class Meta:
-        model=Price;fields=['company','client','product','amount','valid_from','valid_until']
-        labels={'company':'Empresa','client':'Cliente (vazio = preço padrão)','product':'Produto','amount':'Preço confirmado','valid_from':'Válido desde','valid_until':'Válido até'}
-    def clean(self):
-        data=super().clean()
-        if all(data.get(k) is not None for k in ('company','product','valid_from')):
-            rows=Price.objects.filter(company=data['company'],product=data['product'],client=data.get('client'))
-            if data.get('valid_until'):rows=rows.filter(valid_from__lte=data['valid_until'])
-            rows=rows.filter(Q(valid_until__isnull=True)|Q(valid_until__gte=data['valid_from']))
-            if rows.exists():raise ValidationError('Já existe preço nesta vigência. Revise as datas, sem alterar o histórico.')
-        return data
+        model=Price;fields=['company','client','product','amount']
+        labels={'company':'Empresa','client':'Cliente (vazio = preço padrão)','product':'Produto','amount':'Preço de venda atual (R$)'}
+
+class PriceAmountForm(forms.Form):
+    amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
 
 class RecurrenceForm(ScopedForm):
     weekdays=forms.TypedMultipleChoiceField(label='Dias de entrega',choices=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'Sábado'),(7,'Domingo')],coerce=int,widget=forms.CheckboxSelectMultiple)
@@ -96,7 +86,6 @@ class ManualItemForm(forms.Form):
 class InlinePriceForm(forms.Form):
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')
     amount = forms.DecimalField(label='Valor negociado (R$)', min_value=0, max_digits=15, decimal_places=4)
-    valid_from = forms.DateField(label='Válido a partir de', widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def __init__(self, *args, company, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['product'].queryset = Product.objects.filter(company=company, active=True)

@@ -57,6 +57,7 @@ class Price(Entity):
     amount = models.DecimalField(max_digits=15, decimal_places=4)
     valid_from = models.DateField()
     valid_until = models.DateField(null=True, blank=True)
+    superseded = models.BooleanField(default=False)
     class Meta:
         constraints = [models.CheckConstraint(condition=Q(amount__gte=0),name='positive_price'),models.CheckConstraint(condition=Q(valid_until__isnull=True)|Q(valid_until__gte=F('valid_from')),name='price_dates')]
 

@@ -36,13 +36,14 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 ## Testes
 
 ```sh
+.venv/bin/python manage.py collectstatic --noinput
 .venv/bin/python manage.py test -v 2
 .venv/bin/python manage.py check
 .venv/bin/python manage.py makemigrations --check --dry-run
 .venv/bin/python manage.py check_restore
 ```
 
-135 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+149 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -57,7 +58,7 @@ Este repositório é público. As fontes privadas (`reference/`, planilhas, CSVs
 
 Página inicial com painel, filtros por período/empresa, faturamento e rankings de vendas reais emitidas, vencimentos em atraso e alerta de estoque. Pedidos de teste não entram no faturamento. O fluxo de emissão continua em homologação: os indicadores de vendas reais começarão a ser alimentados quando esse fluxo for liberado.
 
-Produtos permitem cadastrar o preço padrão diretamente no formulário. A ficha do cliente reúne observações, condições negociadas por produto, vigências, rotinas, pedidos novos e contas. Novos preços encerram a vigência anterior e preservam documentos emitidos. Contas a receber e recebimentos parciais têm registro manual confirmado e auditoria; não há envio automático de cobrança, conciliação bancária ou criação de dívida pela planilha.
+Produtos permitem cadastrar e alterar o preço padrão diretamente no formulário, sem datas. A ficha do cliente reúne observações, condições negociadas por produto, rotinas, pedidos novos e contas. A aba **Preços** oferece **Alterar preço** em cada condição. O valor entra em uso imediatamente e fica sem prazo de término; trocas no mesmo dia são permitidas e o histórico é registrado automaticamente. Documentos emitidos preservam seus valores. Contas a receber e recebimentos parciais têm registro manual confirmado e auditoria; não há envio automático de cobrança, conciliação bancária ou criação de dívida pela planilha.
 
 Estoque: cadastro de insumos/produtos, mínimo, entradas e saídas justificadas. Não permite saldo negativo, inclusive por retroatividade. Consumo, perdas e saldo inicial são movimentos manuais; não há baixa por ficha técnica automática.
 
@@ -84,12 +85,12 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 **Fechamento de clientes** aceita mês ou período livre, gera PDF preservado de entregas confirmadas, registra envio/aprovação/ressalva e exporta CSV após aprovação. Não envia mensagens, não emite NF-e e não cria dívida automaticamente. O mesmo pedido não entra em dois fechamentos ativos.
 
-[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0014` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
+[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0018` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
 
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0017`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0018`.
 
 
 ### Contas a pagar e XML de compras
@@ -111,3 +112,8 @@ Informe a OC no pedido, antes da emissão, ou no fechamento por período quando 
 **Propostas comerciais → Nova proposta** gera PDF A4 seguindo os blocos do DOCX fornecido: destinatário, descrição/investimento, cardápio, total, condições, validade e assinatura. A empresa selecionada determina a marca: NONA usa o novo logo branco/verde; TECO usa o mesmo logo das suas notinhas. Aceita serviços livres e produtos, com preço informado ou vigente, incluindo condição negociada do cliente. Rascunhos permitem adicionar/remover itens; PDFs gerados ficam preservados e alterações posteriores criam uma revisão.
 
 O administrador configura o **Cabeçalho** de cada empresa, manualmente ou importando o DOCX privado. Por escolha do usuário, os dados do novo modelo da NONA são a referência das propostas. Esses dados são configuração privada no banco, e precisam ser carregados na hospedagem após publicar; não são enviados ao GitHub. O cadastro fiscal e documentos anteriores são preservados. Há registro manual de envio, aceite/recusa e perfil de equipe Comercial. Propostas não criam pedidos, contas ou emissão fiscal automaticamente. [Como usar e publicar](docs/PROPOSTAS_COMERCIAIS.md).
+
+
+### Cadastros durante o pedido
+
+Em **Novo pedido**, selecione a empresa e use **Novo cliente** ao lado do destinatário ou **Novo produto** na linha do item. As caixas oferecem os mesmos dados dos cadastros, incluindo observações do cliente e unidade/custo/preço de venda do produto. Ao salvar, o registro é persistido e selecionado sem recarregar o pedido; horário, quantidades, OC e observações permanecem. É possível adicionar mais linhas e novos produtos durante o lançamento. Cadastros feitos nessas caixas continuam disponíveis mesmo se o pedido ainda não tiver sido salvo. As permissões de administrador para cadastrar clientes/produtos foram mantidas. [Detalhes de preços e primeiro pedido](docs/PEDIDOS_E_PRECOS.md).

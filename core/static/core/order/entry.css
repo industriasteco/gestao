@@ -1,0 +1,25 @@
+.entry-field-actions { display: flex; align-items: stretch; gap: 10px; }
+.entry-field-actions select { flex: 1; min-width: 0; width: 100%; }
+.entry-field-actions button { flex-shrink: 0; }
+.order-item { min-width: 0; border: 1px solid var(--line); }
+.order-item legend { padding: 0 8px; color: var(--muted); font-size: 12px; }
+.quick-record-dialog { width: min(660px, calc(100% - 32px)); max-height: 88vh; max-height: 88svh; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: white; color: var(--ink); box-shadow: 0 24px 90px #102b2655; }
+.quick-record-dialog::backdrop { background: #112e2ac4; }
+.dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.dialog-heading h2 { margin-bottom: 0; font-size: 24px; }
+.dialog-heading .eyebrow { margin-top: 0; }
+.dialog-heading > button { padding: 6px 12px; }
+.quick-record-dialog form { max-width: none; }
+.quick-record-dialog input:not([type=checkbox]):not([type=hidden]), .quick-record-dialog select, .quick-record-dialog textarea { width: 100%; }
+.quick-record-dialog select:disabled { opacity: 1; color: var(--ink); background: #f4f7f1; }
+.quick-record-dialog [aria-invalid=true] { border-color: var(--red); }
+.dialog-actions { display: flex; gap: 10px; flex-wrap: wrap; position: sticky; bottom: -28px; margin: 8px -4px -10px; padding: 16px 4px 10px; background: #fff; border-top: 1px solid var(--line); }
+.quick-record-dialog button:disabled { cursor: wait; opacity: .65; }
+.quick-record-errors { color: var(--red); }
+.quick-record-errors ul { padding-left: 18px; margin: 0; }
+@media (max-width: 740px) {
+  .entry-field-actions { flex-wrap: wrap; }
+  .entry-field-actions select { flex-basis: 100%; }
+  .quick-record-dialog { padding: 20px; }
+  .dialog-actions { bottom: -20px; }
+}

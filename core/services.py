@@ -105,9 +105,13 @@ def stage_bytes(data,filename):
     return batch
 
 
+def prices_on(day):
+    return Price.objects.filter(superseded=False,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day))
+
+
 def price_for(company,client,product,day):
     if product.company_id!=company.pk or client.company_id!=company.pk: raise ValidationError('Empresa incompatível')
-    prices=Price.objects.filter(company=company,product=product,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day))
+    prices=prices_on(day).filter(company=company,product=product)
     selected=prices.filter(client=client)
     if not selected.exists(): selected=prices.filter(client__isnull=True)
     if selected.count()!=1: raise ValidationError('Preço ausente ou vigências sobrepostas')

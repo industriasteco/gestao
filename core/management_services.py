@@ -18,7 +18,7 @@ def set_price(user, company, product, amount, start, client=None):
         raise ValidationError('Produto e cliente devem pertencer à empresa selecionada.')
     if not amount.is_finite() or amount < 0:
         raise ValidationError('Informe um preço válido.')
-    rows = Price.objects.select_for_update().filter(company=company, product=product, client=client)
+    rows = Price.objects.select_for_update().filter(company=company, product=product, client=client, superseded=False)
     if rows.filter(valid_from__gte=start).exists():
         raise ValidationError('Já existe preço nesta data ou em data posterior. Escolha uma nova vigência.')
     current = rows.filter(Q(valid_until__isnull=True) | Q(valid_until__gte=start))
@@ -32,6 +32,37 @@ def set_price(user, company, product, amount, start, client=None):
     price = Price(company=company, product=product, client=client, amount=amount, valid_from=start)
     price.full_clean(); price.save()
     event(user, price, 'DEFINIR_PRECO', after={'amount': str(amount), 'valid_from': str(start), 'client': str(client.pk) if client else ''})
+    return price
+
+
+@transaction.atomic
+def set_current_price(user, company, product, amount, client=None):
+    """Troca o preço agora; datas e substituições são registradas internamente."""
+    authorize(user, company, 'core.change_price')
+    Company.objects.select_for_update().get(pk=company.pk)
+    if product.company_id != company.pk or (client and client.company_id != company.pk):
+        raise ValidationError('Produto e cliente devem pertencer à empresa selecionada.')
+    if not amount.is_finite() or amount < 0:
+        raise ValidationError('Informe um preço válido.')
+    today = timezone.localdate()
+    price = Price(company=company, product=product, client=client, amount=amount, valid_from=today)
+    price.full_clean()
+    rows = Price.objects.select_for_update().filter(company=company, product=product, client=client, superseded=False)
+    current = list(rows.filter(valid_from__lte=today).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=today)))
+    if len(current) == 1 and current[0].amount == amount and current[0].valid_until is None and not rows.filter(valid_from__gt=today).exists():
+        return current[0]
+    for old in rows.filter(Q(valid_until__isnull=True) | Q(valid_until__gte=today)):
+        before = {'amount': str(old.amount), 'valid_from': str(old.valid_from), 'valid_until': str(old.valid_until), 'superseded': old.superseded}
+        if old.valid_from < today:
+            old.valid_until = today-timedelta(days=1)
+            old.save(update_fields=['valid_until'])
+        else:
+            # Preserva inclusive várias trocas no mesmo dia e cadastros futuros.
+            old.superseded = True
+            old.save(update_fields=['superseded'])
+        event(user, old, 'SUBSTITUIR_PRECO', before, {'valid_until': str(old.valid_until), 'superseded': old.superseded}, reason='Novo preço atual informado, sem prazo de término.')
+    price.save()
+    event(user, price, 'DEFINIR_PRECO_ATUAL', after={'amount': str(amount), 'valid_from': str(today), 'client': str(client.pk) if client else ''})
     return price
 
 

@@ -1,1 +1,58 @@
-{% extends 'core/base.html' %}{% block content %}<h1>Novo pedido de teste</h1><p>Este pedido é artificial e não gera cobrança real. Use apenas cadastros confirmados ou identificados como teste.</p><form method="post">{% csrf_token %}<div class="card form-grid">{{ form.as_p }}</div><div class="card"><h2>Itens</h2><p>Preencha os itens necessários. Linhas vazias serão ignoradas.</p>{{ items.management_form }}{{ items.non_form_errors }}{% for item in items %}<div class="card form-grid">{{ item.as_p }}</div>{% endfor %}</div><button>Salvar pedido de teste</button></form>{% endblock %}
+{% extends 'core/base.html' %}
+{% load static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'core/order/entry.css' %}"><script src="{% static 'core/order/entry.js' %}" defer></script>{% endblock %}
+{% block content %}
+<p class="eyebrow">PEDIDOS E PRODUÇÃO</p>
+<h1>Novo pedido de teste</h1>
+<p>Este pedido é artificial e não gera cobrança real. Use apenas cadastros confirmados ou identificados como teste.</p>
+<p id="quick-record-status" class="notice" role="status" hidden></p>
+<form method="post" id="order-entry-form">
+  {% csrf_token %}
+  <section class="card form-grid">
+    <h2>Dados do pedido</h2>
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      {% if field.is_hidden %}{{ field }}{% else %}
+      <p>
+        {{ field.label_tag }}
+        {% if field.name == 'client' and user.is_superuser %}<span class="entry-field-actions">{{ field }}<button type="button" class="secondary" data-quick-open="client">＋ Novo cliente</button></span>{% else %}{{ field }}{% endif %}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}
+      </p>
+      {% endif %}
+    {% endfor %}
+  </section>
+  <section class="card">
+    <h2>Itens do pedido</h2>
+    <p class="subtitle">Selecione os produtos e informe as quantidades. Linhas vazias serão ignoradas.</p>
+    {{ items.management_form }}{{ items.non_form_errors }}
+    <div id="order-items">
+      {% for item in items %}{% include 'core/order_item_fields.html' %}{% endfor %}
+    </div>
+    <template id="empty-order-item">{% include 'core/order_item_fields.html' with item=items.empty_form %}</template>
+    <button type="button" class="secondary" id="add-order-item">＋ Adicionar item</button>
+  </section>
+  <button>Salvar pedido de teste</button>
+</form>
+{% if user.is_superuser %}
+<dialog id="quick-client-dialog" class="quick-record-dialog" aria-labelledby="quick-client-title" data-prefix="quick_client">
+  <div class="dialog-heading"><div><p class="eyebrow">CADASTRO DURANTE O PEDIDO</p><h2 id="quick-client-title">Novo cliente</h2></div><button type="button" class="secondary" data-close-dialog aria-label="Fechar cadastro de cliente">✕</button></div>
+  <p class="subtitle">Preencha os dados e salve para selecionar o cliente neste pedido.</p>
+  <form method="post" action="{% url 'quick_record' 'clientes' %}" class="form-grid quick-record-form">
+    {% csrf_token %}<input type="hidden" name="request_key">
+    <div class="quick-record-errors notice" role="alert" tabindex="-1" hidden></div>
+    {{ quick_client.as_p }}
+    <div class="dialog-actions"><button>Salvar cliente e selecionar</button><button type="button" class="secondary" data-close-dialog>Cancelar</button></div>
+  </form>
+</dialog>
+<dialog id="quick-product-dialog" class="quick-record-dialog" aria-labelledby="quick-product-title" data-prefix="quick_product">
+  <div class="dialog-heading"><div><p class="eyebrow">CADASTRO DURANTE O PEDIDO</p><h2 id="quick-product-title">Novo produto</h2></div><button type="button" class="secondary" data-close-dialog aria-label="Fechar cadastro de produto">✕</button></div>
+  <p class="subtitle">Informe unidade, custo de produção e preço de venda para selecionar o produto neste pedido.</p>
+  <form method="post" action="{% url 'quick_record' 'produtos' %}" class="form-grid quick-record-form">
+    {% csrf_token %}<input type="hidden" name="request_key">
+    <div class="quick-record-errors notice" role="alert" tabindex="-1" hidden></div>
+    {{ quick_product.as_p }}
+    <div class="dialog-actions"><button>Salvar produto e selecionar</button><button type="button" class="secondary" data-close-dialog>Cancelar</button></div>
+  </form>
+</dialog>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{% load erp %}
+<table>
+  <tr><th>Produto / condição</th><th>Valor</th><th>Situação</th><th>Registro automático</th></tr>
+  {% for p in price_history %}
+  <tr>
+    <td>{{ p.product }}<br><small>{{ p.company }} · {{ p.client|default:'Preço padrão' }}</small></td>
+    <td>{{ p.amount|brl4 }}</td>
+    <td>{% if p.superseded %}Substituído{% elif p.valid_from > today %}Agendamento anterior{% elif p.valid_until and p.valid_until < today %}Anterior{% else %}<span class="tag">Atual</span>{% endif %}</td>
+    <td>{{ p.valid_from|date:'d/m/Y' }}{% if p.valid_until %} a {{ p.valid_until|date:'d/m/Y' }}{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="4" class="empty">Nenhuma alteração de preço registrada.</td></tr>{% endfor %}
+</table>

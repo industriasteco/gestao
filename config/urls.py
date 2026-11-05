@@ -10,6 +10,7 @@ from core import proposal_views as pr
 from core.access import first_access,ERPLoginView
 urlpatterns=[
     path('accounts/login/',ERPLoginView.as_view(),name='login'),
+    path('cadastros/rapidos/<str:kind>/',op.quick_record,name='quick_record'),
     path('propostas/',pr.proposals,name='proposals'),
     path('propostas/nova/',pr.proposal_edit,name='proposal_new'),
     path('propostas/cabecalho/<uuid:pk>/',pr.proposal_profile,name='proposal_profile'),
@@ -46,6 +47,7 @@ urlpatterns=[
     path('painel/',mg.dashboard,name='dashboard'),
     path('clientes/<uuid:pk>/',mg.client_detail,name='client_detail'),
     path('produtos/<uuid:pk>/',mg.product_detail,name='product_detail'),
+    path('precos/<uuid:pk>/',mg.price_edit,name='price_edit'),
     path('financeiro/',mg.finance,name='finance'),
     path('financeiro/<uuid:pk>/receber/',mg.payment,name='payment'),
     path('estoque/',mg.stock,name='stock'),
