@@ -5,8 +5,19 @@ from core import operator_views as op
 from core import management_views as mg
 from core import logistics_views as lg
 from core import statement_views as st
+from core import payables_views as ap
 from core.access import first_access
 urlpatterns=[
+    path('empresas/<uuid:pk>/',mg.company_detail,name='company_detail'),
+    path('contas-a-pagar/',ap.payables,name='payables'),
+    path('contas-a-pagar/<uuid:pk>/',ap.payable_detail,name='payable_detail'),
+    path('fornecedores/',ap.suppliers,name='suppliers'),
+    path('fornecedores/<uuid:pk>/',ap.supplier_detail,name='supplier_detail'),
+    path('notas-de-compra/',ap.invoices,name='purchase_invoices'),
+    path('notas-de-compra/<uuid:pk>/',ap.invoice_detail,name='invoice_detail'),
+    path('notas-de-compra/<uuid:pk>/xml/',ap.invoice_xml,name='invoice_xml'),
+    path('fiscal/',ap.fiscal_overview,name='fiscal_overview'),
+
     path('modelo-impressao/',op.print_reference,name='print_reference'),
     path('fechamentos-clientes/',st.statements,name='statements'),
     path('fechamentos-clientes/<uuid:pk>/',st.statement_detail,name='statement_detail'),

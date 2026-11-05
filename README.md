@@ -40,7 +40,7 @@ Credenciais padrão `teco / dev-only` são exclusivamente para o banco local. Pa
 .venv/bin/python manage.py check_restore
 ```
 
-89 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
+109 testes passaram sem testes ignorados: [matriz de evidências](docs/ACEITE.md). Restauração de teste exige usuário PostgreSQL autorizado a criar um banco separado e efêmero; jamais substitui a origem. Não é configuração de backup durável da hospedagem.
 
 ## Organização e limites
 
@@ -82,9 +82,18 @@ Em **Rotas e motoristas**, cadastre os responsáveis e a sequência de clientes.
 
 **Fechamento de clientes** aceita mês ou período livre, gera PDF preservado de entregas confirmadas, registra envio/aprovação/ressalva e exporta CSV após aprovação. Não envia mensagens, não emite NF-e e não cria dívida automaticamente. O mesmo pedido não entra em dois fechamentos ativos.
 
-[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0011` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
+[Rotina prática da fábrica](docs/ROTINA_DA_FABRICA.md) descreve responsabilidades e conferências diárias/mensais. As migrations `0005`–`0014` são aditivas e não apagam pedidos da hospedagem. A emissão real continua dependente da homologação operacional e do ambiente fiscal externo.
 
 
 ### Notinhas e finalização conforme a automação
 
-Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0011`.
+Em Pedidos e produção, informe padeiros noturno/diurno e separação, confira os turnos e use **Finalizar dia e gerar PDFs**. Gera as quatro notinhas por A4 (via empresa sem valores e via cliente com valores), identificadas por TECO/NONA, e o PDF geral/noturno/diurno de produção. O IBIS permanece em A4 retrato com etiquetas de 40×60 mm no verso, por escolha do usuário. [Detalhes e limite da conferência física](docs/IMPRESSAO_REFERENCIA.md). A finalização exige CNPJ da emissora; o teste isolado de notinhas continua identificado como homologação. As migrations atuais vão até `0014`.
+
+
+### Contas a pagar e XML de compras
+
+**Contas a pagar → Importar XML de compra** recebe NF-e 4.00 completa, confere chave/dados e CNPJ destinatário, cadastra o fornecedor e mostra fatura/duplicatas. Após conferência, gera todas as parcelas de forma idempotente. Se faltarem vencimentos, pede as datas; não presume pagamento nem prazo. O XML original permanece privado no PostgreSQL com hash. DTDs/entidades externas são rejeitados. A importação não valida assinatura digital nem consulta a situação atual na SEFAZ.
+
+Pagamentos de fornecedores são registros internos, parciais ou totais, com comprovante/referência, sem movimentação bancária automática. XMLs de homologação geram contas de teste, fora dos totais reais. Há cadastro de despesas sem XML e fornecedores, isolamento por empresa e novo resumo de compromissos no painel.
+
+O objetivo fiscal confirmado pelo usuário é substituir os emissores atuais por este ERP. TECO usa hoje Sistema Imagem e NONA usa Multicomp; a migration `0014` registra essa informação apenas quando o campo da empresa está vazio. **Emissão fiscal própria ainda não está implementada**: não há assinatura de NF-e/NFC-e, transmissão, autorização ou eventos SEFAZ. [Fluxo de compras e transição fiscal](docs/COMPRAS_XML_E_FISCAL.md) define o que está entregue e a próxima etapa. Não há dependência planejada de integrar Imagem ou Multicomp para a futura emissão própria.

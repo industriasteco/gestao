@@ -16,6 +16,7 @@ class Company(Entity):
     address = models.TextField(blank=True)
     phone = models.CharField(max_length=100, blank=True)
     email = models.EmailField(blank=True)
+    fiscal_system = models.CharField(max_length=100, blank=True)
     cnpj = models.CharField(max_length=14, null=True, blank=True, unique=True, validators=[RegexValidator(r'^\d{14}$')])
     active = models.BooleanField(default=True)
     def __str__(self): return self.name
@@ -371,3 +372,74 @@ class StatementLine(Entity):
     active = models.BooleanField(default=True)
     class Meta:
         constraints = [models.UniqueConstraint(fields=['order'],condition=Q(active=True),name='one_active_statement_per_order')]
+
+
+class Supplier(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    name = models.CharField(max_length=200)
+    trade_name = models.CharField(max_length=200, blank=True)
+    tax_id = models.CharField(max_length=14, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=100, blank=True)
+    address = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+    def __str__(self): return self.name
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['company','tax_id'], condition=~Q(tax_id=''), name='supplier_tax_id')]
+
+
+class PurchaseInvoice(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
+    access_key = models.CharField(max_length=44, unique=True)
+    number = models.CharField(max_length=9)
+    series = models.CharField(max_length=3)
+    model = models.CharField(max_length=2)
+    issued_on = models.DateField()
+    total = models.DecimalField(max_digits=16, decimal_places=2)
+    financial_total = models.DecimalField(max_digits=16, decimal_places=2)
+    environment = models.CharField(max_length=1, choices=[('1','Produção'),('2','Homologação / teste')])
+    status = models.CharField(max_length=20, default='EM_REVISAO', choices=[('EM_REVISAO','Conferir parcelas'),('FINANCEIRO_GERADO','Contas a pagar geradas'),('ARQUIVADA','Arquivada sem financeiro')])
+    installments = models.JSONField(default=list, blank=True)
+    summary = models.JSONField(default=dict)
+    xml = models.BinaryField()
+    sha256 = models.CharField(max_length=64)
+    payload_hash = models.CharField(max_length=64)
+    filename = models.CharField(max_length=200)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(total__gte=0)&Q(financial_total__gte=0)&Q(financial_total__lte=F('total')), name='purchase_invoice_totals')]
+
+
+class Payable(Entity):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT)
+    invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.PROTECT, null=True, blank=True, related_name='payables')
+    reference = models.CharField(max_length=120)
+    installment = models.CharField(max_length=60, blank=True)
+    issued_on = models.DateField()
+    due_on = models.DateField(db_index=True)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    notes = models.TextField(blank=True)
+    voided = models.BooleanField(default=False)
+    synthetic = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(amount__gt=0),name='payable_positive'),
+                       models.CheckConstraint(condition=Q(due_on__gte=F('issued_on')),name='payable_dates'),
+                       models.UniqueConstraint(fields=['company','reference'],name='payable_reference')]
+
+
+class Disbursement(Entity):
+    payable = models.ForeignKey(Payable, on_delete=models.PROTECT, related_name='payments')
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    date = models.DateField()
+    method = models.CharField(max_length=15, choices=[('PIX','PIX'),('BOLETO','Boleto'),('TRANSFERENCIA','Transferência'),('DINHEIRO','Dinheiro'),('CARTAO','Cartão'),('OUTRO','Outro')])
+    reference = models.CharField(max_length=120)
+    evidence = models.TextField()
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(amount__gt=0),name='disbursement_positive'),
+                       models.UniqueConstraint(fields=['payable','reference'],name='disbursement_reference')]

@@ -63,7 +63,15 @@ def dashboard(request):
     debtors={r.client_id for r in overdue}
     stock=StockItem.objects.filter(company__in=scope).annotate(balance=Sum('movements__quantity'))
     low_stock=[r for r in stock if (r.balance or Decimal(0))<=r.minimum]
+    obligations=[]
+    if request.user.has_perm('core.view_payable'):
+        from .payables_services import payable_balances
+        obligations=[row for row in payable_balances(request.user) if row.company_id in scope_ids and not row.synthetic and row.balance>0]
+    obligations.sort(key=lambda row:(-row.days_late,row.due_on))
+    payable_total=sum((row.balance for row in obligations),Decimal(0))
+    payable_late=sum((row.balance for row in obligations if row.days_late),Decimal(0))
     context=dict(start=start,end=end,all_companies=companies(request.user),selected_company=request.GET.get('company',''),
+        payable_total=payable_total,payable_late=payable_late,obligations=obligations[:8],
         revenue=revenue,by_company=sorted(by_company.items()),top_clients=sorted(by_client.items(),key=lambda x:-x[1])[:8],
         top_products=top_products,overdue=overdue[:10],overdue_total=sum((r.balance for r in overdue),Decimal(0)),
         overdue_clients=len(debtors),open_total=sum((r.balance for r in accounts if r.balance>0),Decimal(0)),
@@ -246,3 +254,17 @@ def home(request):
         from .views import daily
         return daily(request)
     return dashboard(request)
+
+@login_required
+def company_detail(request,pk):
+    company=get_object_or_404(Company,pk=pk,pk__in=companies(request.user).values('pk'))
+    from .forms import CompanyForm
+    form=CompanyForm(request.POST or None,instance=company,user=request.user)
+    form.fields['code'].disabled=True
+    if request.method=='POST':
+        admin_only(request.user)
+        if form.is_valid():
+            with transaction.atomic():
+                obj=form.save();event(request.user,obj,'EDITAR_EMPRESA',after={name:str(value) for name,value in form.cleaned_data.items() if name in form.changed_data})
+            messages.success(request,'Dados da empresa atualizados. Documentos já emitidos foram preservados.');return redirect('company_detail',pk=pk)
+    return render(request,'core/company_detail.html',{'company':company,'form':form})

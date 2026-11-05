@@ -12,20 +12,20 @@ class ScopedForm(forms.ModelForm):
         self.user=user
         for name,field in self.fields.items():
             if name=='company':field.queryset=companies(user)
-            elif name in ('client','product'):field.queryset=field.queryset.filter(company__in=companies(user))
+            elif name in ('client','product','supplier'):field.queryset=field.queryset.filter(company__in=companies(user))
         for field in self.fields.values():
-            if isinstance(field,forms.DateField):field.widget=forms.DateInput(attrs={'type':'date'})
+            if isinstance(field,forms.DateField):field.widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'})
     def clean(self):
         data=super().clean();co=data.get('company')
-        for field in ('client','product'):
+        for field in ('client','product','supplier'):
             linked=data.get(field)
-            if linked and co and linked.company_id!=co.pk:raise ValidationError('Selecione cliente e produto da mesma empresa.')
+            if linked and co and linked.company_id!=co.pk:raise ValidationError('Selecione cadastros da mesma empresa.')
         return data
 
 class CompanyForm(ScopedForm):
     class Meta:
-        model=Company;fields=['code','name','legal_name','cnpj','address','phone','email']
-        labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)','address':'Endereço da emissora','phone':'Telefone da emissora','email':'E-mail da emissora'}
+        model=Company;fields=['code','name','legal_name','cnpj','address','phone','email','fiscal_system']
+        labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)','address':'Endereço da emissora','phone':'Telefone da emissora','email':'E-mail da emissora','fiscal_system':'Sistema fiscal atual (Imagem, Multicomp ou outro)'}
 
 class ClientForm(ScopedForm):
     class Meta:
@@ -34,7 +34,7 @@ class ClientForm(ScopedForm):
 
 class ProductForm(ScopedForm):
     amount=forms.DecimalField(label='Valor de venda padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
-    valid_from=forms.DateField(label='Preço válido a partir de', required=False, initial=timezone.localdate, widget=forms.DateInput(attrs={'type':'date'}))
+    valid_from=forms.DateField(label='Preço válido a partir de', required=False, initial=timezone.localdate, widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def clean(self):
         data=super().clean()
         if data.get('amount') is not None and not data.get('valid_from'):
@@ -72,7 +72,7 @@ class ProductionInfoForm(forms.ModelForm):
 class MonthForm(forms.Form):
     company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa')
     client=forms.ModelChoiceField(queryset=Client.objects.none(),label='Cliente')
-    month=forms.DateField(label='Mês (selecione dia 1)',widget=forms.DateInput(attrs={'type':'date'}))
+    month=forms.DateField(label='Mês (selecione dia 1)',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['company'].queryset=companies(user)
@@ -94,7 +94,7 @@ class ManualItemForm(forms.Form):
 class InlinePriceForm(forms.Form):
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')
     amount = forms.DecimalField(label='Valor negociado (R$)', min_value=0, max_digits=15, decimal_places=4)
-    valid_from = forms.DateField(label='Válido a partir de', widget=forms.DateInput(attrs={'type':'date'}))
+    valid_from = forms.DateField(label='Válido a partir de', widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def __init__(self, *args, company, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['product'].queryset = Product.objects.filter(company=company, active=True)
@@ -107,7 +107,7 @@ class ReceivableForm(ScopedForm):
 
 class PaymentForm(forms.Form):
     amount=forms.DecimalField(label='Valor recebido (R$)', min_value=Decimal('0.01'), max_digits=15, decimal_places=2)
-    date=forms.DateField(label='Data do recebimento', widget=forms.DateInput(attrs={'type':'date'}))
+    date=forms.DateField(label='Data do recebimento', widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     reference=forms.UUIDField(widget=forms.HiddenInput)
 
 class StockItemForm(ScopedForm):
@@ -118,7 +118,7 @@ class StockItemForm(ScopedForm):
 class StockMovementForm(forms.Form):
     item=forms.ModelChoiceField(queryset=StockItem.objects.none(), label='Item de estoque')
     quantity=forms.DecimalField(label='Quantidade (+ entrada / − saída)', max_digits=15, decimal_places=3)
-    date=forms.DateField(label='Data', widget=forms.DateInput(attrs={'type':'date'}))
+    date=forms.DateField(label='Data', widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     reason=forms.CharField(label='Motivo', max_length=250)
     key=forms.UUIDField(widget=forms.HiddenInput)
     def __init__(self,*args,user,**kwargs):
@@ -128,7 +128,7 @@ class StockMovementForm(forms.Form):
 class WorkbookForm(forms.Form):
     company=forms.ModelChoiceField(queryset=Company.objects.none(), label='Empresa dos clientes')
     file=forms.FileField(label='Planilha de rotinas (.xlsm ou .xlsx)')
-    start=forms.DateField(label='Iniciar rotinas a partir de', widget=forms.DateInput(attrs={'type':'date'}))
+    start=forms.DateField(label='Iniciar rotinas a partir de', widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     confirm=forms.BooleanField(label='Cadastrar clientes, produtos e rotinas estáveis. Não importar pedidos nem valores antigos.')
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
@@ -181,7 +181,7 @@ class RouteStopForm(forms.ModelForm):
 
 class ManifestForm(forms.Form):
     route=forms.ModelChoiceField(queryset=DeliveryRoute.objects.none(),label='Rota')
-    date=forms.DateField(label='Dia das entregas',widget=forms.DateInput(attrs={'type':'date'}))
+    date=forms.DateField(label='Dia das entregas',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['route'].queryset=DeliveryRoute.objects.filter(company__in=companies(user),active=True,driver__active=True)
@@ -203,8 +203,8 @@ class CashBagForm(forms.Form):
 class StatementForm(forms.Form):
     company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa fornecedora')
     client=forms.ModelChoiceField(queryset=Client.objects.none(),label='Cliente')
-    start=forms.DateField(label='Início do período',widget=forms.DateInput(attrs={'type':'date'}))
-    end=forms.DateField(label='Fim do período',widget=forms.DateInput(attrs={'type':'date'}))
+    start=forms.DateField(label='Início do período',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
+    end=forms.DateField(label='Fim do período',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['company'].queryset=companies(user)
@@ -221,3 +221,58 @@ class ShiftResponsiblesForm(forms.Form):
     night=forms.CharField(label='Padeiro noturno',max_length=100,required=False)
     daytime=forms.CharField(label='Padeiro diurno',max_length=100,required=False)
     separator=forms.CharField(label='Responsável pela separação',max_length=100,required=False)
+
+class SupplierForm(ScopedForm):
+    class Meta:
+        model=Supplier
+        fields=['company','name','trade_name','tax_id','email','phone','address','notes','active']
+        labels={'company':'Empresa compradora','name':'Razão social / nome do fornecedor','trade_name':'Nome fantasia','tax_id':'CPF / CNPJ (somente números)','email':'E-mail','phone':'Telefone','address':'Endereço','notes':'Observações','active':'Ativo'}
+    def clean_tax_id(self):
+        import re
+        tax_id=self.cleaned_data.get('tax_id','').strip()
+        if tax_id and not re.fullmatch(r'(?:\d{11}|\d{14})',tax_id):raise ValidationError('Informe 11 dígitos de CPF ou 14 de CNPJ, ou deixe pendente.')
+        return tax_id
+
+class PayableForm(ScopedForm):
+    class Meta:
+        model=Payable
+        fields=['company','supplier','reference','issued_on','due_on','amount','notes','synthetic']
+        labels={'company':'Empresa','supplier':'Fornecedor','reference':'Número / referência única','issued_on':'Emissão','due_on':'Vencimento','amount':'Valor a pagar (R$)','notes':'Observações','synthetic':'Conta de teste (fora dos totais reais)'}
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,user=user,**kwargs)
+        self.fields['supplier'].queryset=Supplier.objects.filter(company__in=companies(user),active=True)
+    def clean(self):
+        data=super().clean()
+        if data.get('issued_on') and data['issued_on']>timezone.localdate():self.add_error('issued_on','A data de emissão está no futuro.')
+        return data
+
+class InvoiceUploadForm(forms.Form):
+    company=forms.ModelChoiceField(queryset=Company.objects.none(),label='Empresa destinatária da nota')
+    file=forms.FileField(label='XML completo da NF-e (até 5 MB)')
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['company'].queryset=companies(user)
+    def clean_file(self):
+        file=self.cleaned_data['file']
+        if not file.name.lower().endswith('.xml') or file.size>5*1024*1024:raise ValidationError('Selecione um arquivo XML de até 5 MB.')
+        return file
+
+class InvoiceInstallmentForm(forms.Form):
+    reference=forms.CharField(label='Parcela / referência',max_length=60)
+    due_on=forms.DateField(label='Vencimento',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
+    amount=forms.DecimalField(label='Valor da parcela (R$)',min_value=Decimal('.01'),max_digits=15,decimal_places=2)
+
+class DisbursementForm(forms.Form):
+    amount=forms.DecimalField(label='Valor pago (R$)',min_value=Decimal('.01'),max_digits=15,decimal_places=2)
+    date=forms.DateField(label='Data do pagamento',widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
+    method=forms.ChoiceField(label='Forma de pagamento',choices=Disbursement._meta.get_field('method').choices)
+    evidence=forms.CharField(label='Referência do comprovante / observação',min_length=3,widget=forms.Textarea)
+    reference=forms.UUIDField(widget=forms.HiddenInput)
+
+class PayableFilterForm(forms.Form):
+    company=forms.ModelChoiceField(queryset=Company.objects.none(),required=False,label='Empresa')
+    status=forms.ChoiceField(label='Situação',required=False,choices=[('','Todas'),('open','Em aberto'),('overdue','Vencidas'),('paid','Quitadas')])
+    q=forms.CharField(label='Fornecedor ou referência',required=False,max_length=200)
+    def __init__(self,*args,user,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['company'].queryset=companies(user)

@@ -63,3 +63,16 @@ O demonstrativo é o total fornecido, não uma nova dívida. Recebimentos e sald
 ## Limites desta etapa
 
 O ambiente continua em homologação. Estoque e custos são informados, sem ficha técnica automática ou integração bancária. Não há cálculo de lucro líquido, emissão fiscal integrada, baixa automática de insumos por receita ou correção automática após aprovação fiscal. A implantação e a conferência dos dados reais devem preceder a operação definitiva.
+
+
+## Compras e contas a pagar
+
+Receba o XML completo do fornecedor e abra Contas a pagar → Importar XML de compra. Selecione TECO ou NONA, confira o CNPJ, o fornecedor e as duplicatas, e confirme para gerar todas as parcelas. Se faltarem datas no XML, complete o combinado com o fornecedor. Não presuma vencimento ou pagamento.
+
+O Financeiro acompanha contas vencidas e próximas de vencer, registra pagamentos já realizados e mantém os comprovantes/referências. Pagamentos parciais deixam saldo. Reenvio da mesma nota não duplica parcelas. O ERP não paga boletos ou transfere dinheiro e não altera estoque automaticamente com essa importação.
+
+## Objetivo fiscal: substituir os emissores atuais
+
+O objetivo final é emitir pelo próprio ERP, substituindo Sistema Imagem (TECO) e Multicomp (NONA). Essa emissão ainda precisa ser implementada e homologada com os dados tributários e o certificado de cada empresa. Antes da transição definitiva, validar autorização, rejeições/recuperação, eventos, numeração/série e guarda dos XMLs. As notinhas de entrega continuam sendo documentos não fiscais.
+
+A importação de XMLs de compras e o financeiro já estão disponíveis no projeto; não equivalem à emissão de NF-e/NFC-e. O roteiro está em COMPRAS_XML_E_FISCAL.md.

@@ -14,6 +14,8 @@
 <a href="/cadastros/produtos/" class="{% if '/produtos/' in request.path %}active{% endif %}"><span class="nav-icon">◇</span>Produtos e preços</a>
 <a href="/rotinas/" class="{% if '/rotinas/' in request.path %}active{% endif %}"><span class="nav-icon">↻</span>Rotinas de compra</a>
 {% if perms.core.view_receivable %}<a href="/financeiro/" class="{% if '/financeiro/' in request.path %}active{% endif %}"><span class="nav-icon">＄</span>Contas a receber</a>{% endif %}
+{% if perms.core.view_payable %}<a href="/contas-a-pagar/" class="{% if '/contas-a-pagar/' in request.path %}active{% endif %}"><span class="nav-icon">↗</span>Contas a pagar</a>{% endif %}
+{% if perms.core.view_purchaseinvoice %}<a href="/fiscal/" class="{% if '/fiscal/' in request.path or '/notas-de-compra/' in request.path %}active{% endif %}"><span class="nav-icon">▥</span>Fiscal e XML</a>{% endif %}
 <a href="/estoque/" class="{% if '/estoque/' in request.path %}active{% endif %}"><span class="nav-icon">▣</span>Estoque</a>
 <a href="/rotas/" class="{% if '/rotas/' in request.path %}active{% endif %}"><span class="nav-icon">↝</span>Rotas e motoristas</a>
 <a href="/romaneios/" class="{% if '/romaneios/' in request.path %}active{% endif %}"><span class="nav-icon">▤</span>Romaneios e malotes</a>

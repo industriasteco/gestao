@@ -12,12 +12,12 @@ O teste local da planilha real cadastrou apenas cadastros/rotinas, com **0 pedid
 
 ## Validação
 
-89 testes PostgreSQL passaram: 42 anteriores e 47 novos, sem ignorados. Cobertura nova: importação sem pedidos/contas, idempotência, moda por dia, lacunas, agrupamento dos itens por cliente, preservação de ajustes, preços negociados e histórico, recebimentos parciais, sobrepagamento, datas futuras, estoque negativo/retroativo, isolamento por empresa, painel sem faturamento de teste, rotas e divergência entre vias. `check`, migrations sem alterações pendentes e `diff --check` aprovados.
+109 testes PostgreSQL passaram: 42 anteriores e 67 novos, sem ignorados. Cobertura nova: importação sem pedidos/contas, idempotência, moda por dia, lacunas, agrupamento dos itens por cliente, preservação de ajustes, preços negociados e histórico, recebimentos parciais, sobrepagamento, datas futuras, estoque negativo/retroativo, isolamento por empresa, painel sem faturamento de teste, rotas e divergência entre vias. `check`, migrations sem alterações pendentes e `diff --check` aprovados.
 
 ## Publicar em homologação
 
 1. Publicar o código revisado na branch usada pelo serviço Render.
-2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0011` no deploy.
+2. O comando atual de inicialização do Render aplica migrations antes do Gunicorn; confirmar conclusão das migrations até `0014` no deploy.
 3. Acessar o sistema com a conta existente. A página inicial abre o painel; `/?date=AAAA-MM-DD` mantém compatibilidade com a produção diária.
 4. Em Produtos, cadastrar preços confirmados. Na ficha do cliente, definir exceções negociadas.
 5. Em Rotinas, analisar a planilha original, selecionar TECO e a data de início futura. Confirmar que a ação cadastra somente clientes/produtos/rotinas.
@@ -44,3 +44,12 @@ Os 24 testes operacionais adicionais cobrem produção/custos/perdas, comparaç�
 [Referência de impressão](IMPRESSAO_REFERENCIA.md) registra o fluxo conferido no XLSM e a escolha expressa do usuário pelo IBIS retrato frente/verso. Finalizar dia agrupa os pedidos emitidos num PDF com TECO/NONA e gera outro com produção geral/noturna/diurna. Endereço/telefone/e-mail da emissora e responsáveis ficam preservados na emissão. Arquivos mistos exigem acesso a todas as empresas. Quantidade zero fica fora; dados incompletos revertem o lote.
 
 A suite final tem **89 testes**, sem ignorados. Os oito testes adicionais desta etapa verificam agrupamento manual conforme a automação, finalização multimarcas, escopo do PDF, falha atômica, pré-requisitos, quantidade zero/responsáveis, paginação/totais por parte e carregamento apenas dos dados das emissoras. Após o ajuste final da grade, 18 testes de impressão/fechamento foram repetidos com sucesso. As 13 telas principais foram abertas em navegador no tamanho de celular, sem erro HTTP, JavaScript ou transbordamento horizontal. A impressão física permanece sujeita à conferência das amostras.
+
+
+## Contas a pagar / XML e objetivo fiscal próprio
+
+[Fluxo de compras e transição fiscal](COMPRAS_XML_E_FISCAL.md). Leitura segura de NF-e 4.00 recebida, fornecedor, fatura/duplicatas e conferência antes de gerar contas. Parcelas sem datas exigem programação manual; valores e datas existentes no XML são preservados. Pagamentos parciais, cancelamento interno de contas sem pagamentos, arquivo XML privado com hash, isolamento por empresa e separação entre ambiente de teste/produção.
+
+O usuário confirmou o objetivo de substituir Imagem/Multicomp por um ERP fiscal único, posteriormente. A emissão própria e sua homologação ainda são uma etapa futura. Cadastro atual: TECO / Sistema Imagem; NONA / Multicomp. Esses dados são informativos e não configuram conexões.
+
+**109 testes aprovados**, sem ignorados, incluindo 20 novos de importação, duplicidade, XML inseguro, totais/vencimentos, destinatário, pagamento parcial, permissões, telas e cadastro de empresa. Fluxo navegador com XML artificial: upload → conferência → geração de duas parcelas → pagamento parcial → consulta de saldo, também no celular. Nenhuma nota real nem pagamento bancário foi criado nos testes. A nova marca da NONA nas notinhas também passou nos nove testes de impressão executados nesta etapa.
