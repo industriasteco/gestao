@@ -102,7 +102,7 @@ def client_detail(request,pk):
     previous_days=list(client.recurring_weekdays)
     edit=ClientForm(instance=client,user=request.user)
     price=InlinePriceForm(company=client.company)
-    routine=ClientRoutineForm(company=client.company)
+    routine=ClientRoutineForm(company=client.company,initial={'weekdays':client.recurring_weekdays})
     if request.method=='POST':
         admin_only(request.user)
         if request.POST.get('action')=='edit':
@@ -119,9 +119,9 @@ def client_detail(request,pk):
                 try:
                     data=routine.cleaned_data
                     with transaction.atomic():
-                        save_recurring_items(request.user,client,[{'product':data['product'],'quantity':data['quantity']}],data['slot'],data['time'],data['shift'],data['notes'])
+                        save_recurring_items(request.user,client,[{'product':data['product'],'quantity':data['quantity']}],data['slot'],data['time'],data['shift'],data['notes'],weekdays=data['weekdays'])
                         if data['amount'] is not None:set_current_price(request.user,client.company,data['product'],data['amount'],client)
-                    messages.success(request,'Produto, quantidade e rotina semanal salvos.');return redirect('client_detail',pk=pk)
+                    messages.success(request,'Produto e quantidade salvos somente nos dias selecionados. Pedidos já preparados permanecem como estavam.');return redirect('client_detail',pk=pk)
                 except ValidationError as exc:routine.add_error(None,exc)
         else:
             price=InlinePriceForm(request.POST,company=client.company)

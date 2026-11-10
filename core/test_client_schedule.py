@@ -92,7 +92,7 @@ class ClientScheduleTests(TestCase):
         self.client.get(f'/pedidos-dia/?date={self.today}');self.assertEqual(Order.objects.count(),0)
 
     def test_client_page_can_add_products_quantities_and_prices_to_routine(self):
-        data={'action':'routine','product':str(self.product.pk),'quantity':'12','amount':'1.40','slot':'Pedido fixo','time':'06:00','shift':'NOTURNO','notes':'Instrução artificial'}
+        data={'action':'routine','product':str(self.product.pk),'quantity':'12','weekdays':['1','3','5'],'amount':'1.40','slot':'Pedido fixo','time':'06:00','shift':'NOTURNO','notes':'Instrução artificial'}
         self.assertEqual(self.client.post(f'/clientes/{self.customer.pk}/',data).status_code,302)
         data['product']=str(self.other_product.pk);data['quantity']='5';data['amount']='2.25'
         self.assertEqual(self.client.post(f'/clientes/{self.customer.pk}/',data).status_code,302)
@@ -130,3 +130,99 @@ class ClientScheduleTests(TestCase):
         item.refresh_from_db();self.assertEqual(item.quantity,77)
         next_day=following+timedelta(days=7);prepare(self.user,next_day,automatic_only=True)
         self.assertEqual(Order.objects.get(date=next_day).items.get().quantity,20)
+
+    def routine_data(self,product,quantity,days):
+        return {'action':'routine','product':str(product.pk),'quantity':str(quantity),'weekdays':[str(day) for day in days],'slot':'Pedido fixo','time':'06:00','shift':'NOTURNO'}
+
+    def test_products_follow_their_own_days_and_friday_extras_share_one_order(self):
+        self.assertEqual(self.client.post(f'/clientes/{self.customer.pk}/',self.routine_data(self.product,60,[1,3,5])).status_code,302)
+        extra=self.routine_data(self.other_product,250,[5]);extra['amount']='1.75'
+        self.assertEqual(self.client.post(f'/clientes/{self.customer.pk}/',extra).status_code,302)
+        self.assertFalse(Recurrence.objects.filter(follow_client_days=True).exists())
+        for offset in range(7):
+            day=self.monday+timedelta(days=offset)
+            self.client.get(f'/pedidos-dia/?date={day}')
+            if offset in (0,2,4):
+                order=Order.objects.get(date=day)
+                expected={self.product.pk:Decimal(60)}
+                if offset==4:expected[self.other_product.pk]=Decimal(250)
+                self.assertEqual(dict(order.items.values_list('product_id','quantity')),expected)
+            else:self.assertFalse(Order.objects.filter(date=day).exists())
+        self.client.get(f'/pedidos-dia/?date={self.monday+timedelta(days=4)}')
+        self.assertEqual(Order.objects.count(),3)
+        self.assertEqual(price_for(self.company,self.customer,self.other_product,self.monday),Decimal('1.75'))
+
+    def test_same_product_can_have_different_quantities_without_overlapping_days(self):
+        url=f'/clientes/{self.customer.pk}/'
+        self.client.post(url,self.routine_data(self.product,60,[1,3,5]))
+        friday=self.routine_data(self.product,250,[5])
+        self.client.post(url,friday);self.client.post(url,friday)
+        rules=Recurrence.objects.filter(active=True)
+        self.assertEqual(rules.count(),2)
+        self.assertEqual(rules.get(quantity=60).weekdays,[1,3])
+        self.assertEqual(rules.get(quantity=250).weekdays,[5])
+        for offset,quantity in ((0,60),(2,60),(4,250)):
+            day=self.monday+timedelta(days=offset);prepare(self.user,day,automatic_only=True)
+            self.assertEqual(Order.objects.get(date=day).items.get().quantity,quantity)
+        # Uma seleção que cobre várias linhas substitui só os dias selecionados.
+        self.client.post(url,self.routine_data(self.product,80,[3,5]))
+        self.assertEqual(Recurrence.objects.get(active=True,quantity=60).weekdays,[1])
+        self.assertEqual(Recurrence.objects.get(active=True,quantity=80).weekdays,[3,5])
+        self.assertEqual(Recurrence.objects.filter(active=True).count(),2)
+
+    def test_client_day_changes_preserve_custom_days_and_update_legacy_followers(self):
+        save_recurring_items(self.user,self.customer,[{'product':self.product,'quantity':Decimal(60)}],'Pedido fixo',time(6),'NOTURNO')
+        self.client.post(f'/clientes/{self.customer.pk}/',self.routine_data(self.other_product,250,[5]))
+        self.client.post(f'/clientes/{self.customer.pk}/',{'action':'edit','name':self.customer.name,'recurring_weekdays':['2','4']})
+        self.assertEqual(Recurrence.objects.get(product=self.product).weekdays,[2,4])
+        self.assertEqual(Recurrence.objects.get(product=self.other_product).weekdays,[5])
+        # Tirar todos os dias gerais mantém a entrega própria de sexta.
+        self.client.post(f'/clientes/{self.customer.pk}/',{'action':'edit','name':self.customer.name})
+        prepare(self.user,self.monday+timedelta(days=4),automatic_only=True)
+        self.assertEqual(Order.objects.get().items.get().quantity,250)
+
+    def test_specific_day_can_be_set_without_client_general_days(self):
+        self.customer.recurring_weekdays=[];self.customer.save()
+        response=self.client.post(f'/clientes/{self.customer.pk}/',self.routine_data(self.product,60,[5]))
+        self.assertEqual(response.status_code,302)
+        self.assertEqual(Recurrence.objects.get().weekdays,[5])
+
+    def test_invalid_or_missing_product_days_do_not_save_routine_or_price(self):
+        url=f'/clientes/{self.customer.pk}/'
+        for days in ([],[0],[8]):
+            data=self.routine_data(self.product,60,days);data['amount']='2.50'
+            response=self.client.post(url,data)
+            self.assertEqual(response.status_code,200)
+            self.assertTrue(response.context['routine_form'].errors)
+        self.assertEqual(Recurrence.objects.count(),0)
+        self.assertFalse(Price.objects.filter(client=self.customer).exists())
+
+    def test_day_specific_changes_preserve_prepared_quantities_and_add_no_duplicate(self):
+        url=f'/clientes/{self.customer.pk}/'
+        self.client.post(url,self.routine_data(self.product,60,[1,3,5]))
+        friday=self.monday+timedelta(days=4);prepare(self.user,friday,automatic_only=True)
+        order=Order.objects.get();item=order.items.get();item.quantity=77;item.save()
+        self.client.post(url,self.routine_data(self.product,250,[5]))
+        self.client.post(url,self.routine_data(self.other_product,250,[5]))
+        self.assertEqual(prepare(self.user,friday,automatic_only=True),0)
+        self.assertEqual(Order.objects.count(),1)
+        item.refresh_from_db();self.assertEqual(item.quantity,77)
+        self.assertEqual(order.items.count(),1)
+        prepare(self.user,friday+timedelta(days=7),automatic_only=True)
+        future=Order.objects.get(date=friday+timedelta(days=7))
+        self.assertEqual(dict(future.items.values_list('product_id','quantity')),{self.product.pk:Decimal(250),self.other_product.pk:Decimal(250)})
+
+    def test_editing_product_days_detaches_routine_from_general_days(self):
+        rule=save_recurring_items(self.user,self.customer,[{'product':self.product,'quantity':Decimal(60)}],'Pedido fixo',time(6),'NOTURNO')[0]
+        data={'quantity':'60','slot':'Pedido fixo','time':'06:00','shift':'NOTURNO','weekdays':['5'],'auto_prepare':'on','valid_from':str(self.today)}
+        response=self.client.post(f'/rotinas/{rule.pk}/',data)
+        self.assertEqual(response.status_code,302)
+        rule.refresh_from_db();self.assertFalse(rule.follow_client_days)
+        self.client.post(f'/clientes/{self.customer.pk}/',{'action':'edit','name':self.customer.name,'recurring_weekdays':['2','4']})
+        rule.refresh_from_db();self.assertEqual(rule.weekdays,[5])
+
+    def test_non_admin_cannot_change_day_specific_routines(self):
+        reader=User.objects.create_user('leitor_rotinas');Membership.objects.create(user=reader,company=self.company)
+        self.client.force_login(reader)
+        self.assertEqual(self.client.post(f'/clientes/{self.customer.pk}/',self.routine_data(self.product,60,[5])).status_code,403)
+        self.assertEqual(Recurrence.objects.count(),0)

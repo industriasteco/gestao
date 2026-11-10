@@ -30,7 +30,7 @@ As permissões existentes de cadastro são mantidas: somente administrador cria 
 
 ## Publicação e validação
 
-O comando de inicialização deve aplicar a migration `0024`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
+O comando de inicialização deve aplicar as migrations até `0025`; o build deve executar `collectstatic` para publicar o estilo e o JavaScript das caixas. Os comandos já estão em `render.yaml`. A migração não apaga preços, pedidos ou documentos e não altera valores existentes por conta própria.
 
 185 testes PostgreSQL no conjunto completo, incluindo oito cenários de preço, seis de cadastro durante o pedido e 11 de catálogo compartilhado. Cobertura de versões no mesmo dia, preços anteriores/futuros, condição negociada, custo/valor zero, dados inválidos, isolamento/permissões, CSRF, idempotência e preservação de notinha, proposta e fechamento. No navegador foram feitos cliente e produto novos, validação/correção, seleção automática, alteração repetida de preço e salvamento de pedido com seus dados preservados, em banco separado de exemplos. As telas e as caixas também foram conferidas no celular.
 
@@ -43,7 +43,15 @@ Os dias são uma preferência salva; os produtos e as quantidades precisam ser d
 
 Ao abrir **Pedidos e produção** numa data atual/futura, o sistema prepara automaticamente as rotinas confirmadas para aquele dia, desde que o acesso tenha permissão de preparar produção. O primeiro pedido já lançado é reconhecido e não é duplicado. Abrir novamente a mesma data preserva pedidos e ajustes. Datas passadas e rotinas importadas continuam dependendo do preparo manual existente; a atualização não importa pedidos antigos nem ativa o legado.
 
-Na ficha do cliente, o bloco **Dias recorrentes e pedido habitual** permite adicionar produto, quantidade, preço opcional, horário e turno. Alterar os dias em **Editar cadastro** atualiza as rotinas automáticas. Desmarcar todos os dias interrompe novos preparos; pedidos já preparados permanecem para conferência/ajuste. Uma rotina suspensa individualmente continua suspensa ao alterar os dias. Não há emissão automática, cobrança ou confirmação de produção realizada por marcar os dias.
+Na ficha do cliente, o bloco **Dias recorrentes e pedido habitual → Definir produto, quantidade e dias** permite escolher os dias de cada produto, além da quantidade, preço opcional, horário e turno. Exemplo: salve 60 pães para segunda, quarta e sexta; depois salve 250 de outro produto somente para sexta. Use a mesma identificação da entrega, horário e turno para que os dois produtos componham um único pedido na sexta. Segunda e quarta terão apenas os 60 pães.
+
+Também é possível usar quantidades diferentes do mesmo produto em dias distintos: salve a quantidade e marque os dias correspondentes. Salvar novamente o mesmo produto na mesma entrega define a nova quantidade apenas nos dias selecionados, sem somá-la ao cadastro anterior. Os outros dias e produtos são preservados. Na tabela **Rotina de compra por produto e dia**, use **Editar dias e quantidade** para ajustar uma linha existente ou suspender a rotina. O preço opcional continua sendo uma condição do produto para o cliente, válida em todos os dias.
+
+As rotinas configuradas dessa forma têm dias próprios. Alterar os dias gerais em **Editar cadastro** atualiza somente as rotinas que acompanham esses dias (como as criadas por **Repetir este pedido**), preservando as de dias próprios. Desmarcar todos os dias gerais interrompe apenas as rotinas que os acompanham. Ao alterar os dias diretamente em **Editar dias e quantidade**, a linha passa a usar dias próprios. Uma rotina suspensa continua suspensa ao alterar os dias gerais.
+
+A migration `0025` acrescenta essa distinção mantendo o comportamento das rotinas existentes. Não apaga cadastros nem altera quantidades ou dias já salvos. Pedidos já preparados, seus ajustes e documentos são preservados; mudanças na rotina valem para os próximos preparos. Não há emissão automática, cobrança ou confirmação de produção realizada por marcar os dias.
+
+Validação desta alteração: 193 testes PostgreSQL aprovados, incluindo o exemplo de 60 + 250 na sexta, quantidades diferentes do mesmo produto, reenvio sem duplicação, preservação de pedidos preparados, dias inválidos e permissões.
 
 
 ## Ativar o uso e preparar amanhã hoje

@@ -77,6 +77,7 @@ class Recurrence(Entity):
     valid_until = models.DateField(null=True, blank=True)
     active = models.BooleanField(default=False)
     auto_prepare = models.BooleanField(default=False)
+    follow_client_days = models.BooleanField(default=True)
     archived = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)

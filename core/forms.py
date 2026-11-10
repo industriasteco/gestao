@@ -33,7 +33,7 @@ class CompanyForm(ScopedForm):
         labels={'code':'Código','name':'Nome da empresa','legal_name':'Razão social','cnpj':'CNPJ (somente confirmado)','address':'Endereço da emissora','phone':'Telefone da emissora','email':'E-mail da emissora','fiscal_system':'Sistema fiscal atual (Imagem, Multicomp ou outro)'}
 
 class ClientForm(ScopedForm):
-    recurring_weekdays=forms.TypedMultipleChoiceField(label='Dias recorrentes de pedido',choices=WEEKDAYS,coerce=int,required=False,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}),help_text='Marque os dias fixos. No primeiro pedido, use a opção Repetir este pedido para definir os produtos e quantidades. Alterar os dias atualiza as rotinas automáticas, preservando pedidos já preparados.')
+    recurring_weekdays=forms.TypedMultipleChoiceField(label='Dias recorrentes de pedido',choices=WEEKDAYS,coerce=int,required=False,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}),help_text='Dias gerais para repetir o primeiro pedido. Na ficha do cliente, você pode escolher dias próprios para cada produto. Alterar estes dias mantém as rotinas com dias próprios e os pedidos já preparados.')
     class Meta:
         model=Client;fields=['company','name','recurring_weekdays','legal_name','tax_id','email','phone','address','notes','requires_purchase_order']
         widgets={'address':forms.Textarea(attrs={'rows':3}),'notes':forms.Textarea(attrs={'rows':3})}
@@ -57,7 +57,12 @@ class PriceAmountForm(forms.Form):
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
 
 class RecurrenceForm(ScopedForm):
-    weekdays=forms.TypedMultipleChoiceField(label='Dias de entrega',choices=WEEKDAYS,coerce=int,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}))
+    weekdays=forms.TypedMultipleChoiceField(label='Dias de entrega deste produto',choices=WEEKDAYS,coerce=int,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}),help_text='Ao alterar os dias aqui, este produto passa a ter dias próprios, independentes dos dias gerais do cliente.')
+    def save(self,commit=True):
+        rule=super().save(commit=False)
+        if self.instance._state.adding or 'weekdays' in self.changed_data:rule.follow_client_days=False
+        if commit:rule.save()
+        return rule
     class Meta:
         model=Recurrence;fields=['company','client','product','quantity','slot','time','shift','weekdays','auto_prepare','valid_from','valid_until','notes']
         labels={'company':'Empresa','client':'Cliente','product':'Produto','quantity':'Quantidade padrão','slot':'Identificação da entrega','time':'Horário','shift':'Turno','auto_prepare':'Preparar automaticamente ao abrir a produção da data','valid_from':'Início','valid_until':'Fim','notes':'Instruções de preparo e entrega'}
@@ -131,6 +136,7 @@ def client_price_forms(user,data=None,prefix='client_prices'):
 class ClientRoutineForm(forms.Form):
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
     quantity=forms.DecimalField(label='Quantidade por entrega',min_value=Decimal('.001'),max_digits=15,decimal_places=3)
+    weekdays=forms.TypedMultipleChoiceField(label='Dias em que este produto será entregue',choices=WEEKDAYS,coerce=int,widget=forms.CheckboxSelectMultiple(attrs={'class':'weekday-options'}),help_text='Marque somente os dias deste produto. Para outra quantidade em outro dia, salve uma nova linha com esse dia e quantidade.')
     amount=forms.DecimalField(label='Preço para este cliente (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4)
     slot=forms.CharField(label='Identificação da entrega',max_length=60,initial='Pedido fixo')
     time=forms.TimeField(label='Horário da entrega',widget=forms.TimeInput(format='%H:%M',attrs={'type':'time'}))
