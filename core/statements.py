@@ -4,6 +4,7 @@ import uuid
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from .models import Company, Order, ClientStatement, StatementLine, Document
 from .services import authorize
@@ -13,7 +14,7 @@ from .billing import subtotal as billing_subtotal,decimal_text
 
 def eligible_orders(company,client,start,end):
     if client.company_id!=company.pk:raise ValidationError('Cliente de outra empresa.')
-    return Order.objects.filter(company=company,client=client,date__range=(start,end),status__in=['ENTREGUE','LIBERADO_FECHAMENTO'],delivered_at__isnull=False).exclude(issued_snapshot={}).order_by('date','time','pk')
+    return Order.objects.filter(company=company,client=client,date__range=(start,end),status__in=['ENTREGUE','LIBERADO_FECHAMENTO'],delivered_at__isnull=False).filter(~Q(issued_snapshot={})|~Q(delivery_evidence='')).order_by('date','time','pk')
 
 
 @transaction.atomic

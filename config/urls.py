@@ -8,6 +8,7 @@ from core import statement_views as st
 from core import payables_views as ap
 from core import proposal_views as pr
 from core import operations_views as ov
+from core import client_report_views as cr
 from core.access import first_access,ERPLoginView
 urlpatterns=[
     path('comecar/',ov.operations_start,name='operations_start'),
@@ -48,6 +49,9 @@ urlpatterns=[
 
     path('painel/',mg.dashboard,name='dashboard'),
     path('clientes/<uuid:pk>/',mg.client_detail,name='client_detail'),
+    path('clientes/<uuid:pk>/vendas/confirmar/',mg.client_sales,name='client_sales'),
+    path('clientes/<uuid:pk>/relatorios/gerar/',cr.generate,name='client_report_generate'),
+    path('clientes/<uuid:pk>/relatorios/<uuid:document_id>/pdf/',cr.document,name='client_report_document'),
     path('produtos/<uuid:pk>/',mg.product_detail,name='product_detail'),
     path('precos/<uuid:pk>/',mg.price_edit,name='price_edit'),
     path('financeiro/',mg.finance,name='finance'),

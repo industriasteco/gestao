@@ -84,7 +84,7 @@ def balances(user, day=None):
     result = []
     for row in rows:
         row.balance = row.amount-(row.paid or Decimal(0))
-        row.days_late = max((day-row.due_on).days, 0) if row.balance > 0 else 0
+        row.days_late = max((day-row.due_on).days, 0) if row.balance > 0 and row.due_on else 0
         result.append(row)
     return result
 

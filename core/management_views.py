@@ -8,10 +8,11 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Sum, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponse
 from django.utils import timezone
 from .models import *
 from .forms import (ClientForm, ProductForm, InlinePriceForm, PriceAmountForm, ClientRoutineForm, ReceivableForm, PaymentForm,
-                    StockItemForm, StockMovementForm, WorkbookForm, RecurrenceForm)
+                    StockItemForm, StockMovementForm, WorkbookForm, RecurrenceForm,DeliveredSalesForm,ExternalInvoiceForm)
 from .services import companies, authorize, prices_on
 from .management_services import balances, receive, move_stock, set_current_price
 from .workflow import event
@@ -61,6 +62,7 @@ def dashboard(request):
         maximum=max((x['quantity'] for x in top_products if x['unit']==row['unit']),default=1)
         row['percent']=round(row['quantity']/maximum*100)
     scope_ids=set(scope.values_list('pk',flat=True))
+    pending_invoices=Receivable.objects.filter(company__in=scope,voided=False,external_invoice_date__isnull=True).exclude(source_orders=[])
     accounts=[r for r in balances(request.user) if r.company_id in scope_ids]
     overdue=sorted([r for r in accounts if r.balance>0 and r.days_late], key=lambda r:(-r.days_late,-r.balance))
     debtors={r.client_id for r in overdue}
@@ -76,6 +78,7 @@ def dashboard(request):
     context=dict(start=start,end=end,all_companies=companies(request.user),selected_company=request.GET.get('company',''),
         payable_total=payable_total,payable_late=payable_late,obligations=obligations[:8],
         revenue=revenue,by_company=sorted(by_company.items()),top_clients=sorted(by_client.items(),key=lambda x:-x[1])[:8],
+        awaiting_invoice_total=pending_invoices.aggregate(value=Sum('amount'))['value'] or Decimal(0),awaiting_invoice_count=pending_invoices.count(),
         top_products=top_products,overdue=overdue[:10],overdue_total=sum((r.balance for r in overdue),Decimal(0)),
         overdue_clients=len(debtors),open_total=sum((r.balance for r in accounts if r.balance>0),Decimal(0)),
         low_stock=low_stock,order_count=orders.count(),sold_count=sold.count(),unpriced=unpriced,
@@ -134,11 +137,18 @@ def client_detail(request,pk):
     accounts=[r for r in balances(request.user) if r.client_id==client.pk] if request.user.has_perm('core.view_receivable') else []
     overdue=[r for r in accounts if r.days_late]
     status='Inadimplente' if overdue else ('Adimplente' if accounts else 'Sem histórico financeiro')
+    reports=[]
+    if request.user.has_perm('core.view_clientstatement'):
+        from .client_reports import report_prefix
+        reports=list(Document.objects.filter(company=client.company,kind='RELATORIO_PEDIDOS_CLIENTE',key__startswith=report_prefix(client)).order_by('-created_at')[:20])
+        for doc in reports:
+            parts=doc.key.split(':');doc.report_start=parts[2];doc.report_end=parts[3]
     return render(request,'core/client_detail.html',dict(client=client,edit=edit,price_form=price,routine_form=routine,
         status=status,accounts=accounts,pending=client_routine_pending(request.user,client),prices=prices_on(timezone.localdate()).filter(client=client).select_related('product').order_by('product__name'),
         price_history=Price.objects.filter(client=client).select_related('product').order_by('-valid_from','product__name'),today=timezone.localdate(),
         rules=Recurrence.objects.filter(client=client,archived=False).select_related('product').order_by('product__name','time'),
-        orders=Order.objects.filter(client=client).order_by('-date')[:20],
+        orders=Order.objects.filter(client=client).order_by('-date')[:20],client_reports=reports,
+        sales_form=DeliveredSalesForm(initial={'start':timezone.localdate().replace(day=1),'end':timezone.localdate()}),
         events=Audit.objects.filter(Q(entity=str(client.pk))|Q(entity__in=[str(pk) for pk in Price.objects.filter(client=client).values_list('id',flat=True)])).order_by('-at')[:30]))
 
 
@@ -192,7 +202,7 @@ def finance(request):
             with transaction.atomic():
                 obj=form.save();event(request.user,obj,'CADASTRAR_RECEBIVEL',after={'amount':str(obj.amount),'due_on':str(obj.due_on)})
             messages.success(request,'Conta registrada. Nenhuma mensagem de cobrança enviada.');return redirect('finance')
-    rows=sorted(balances(request.user),key=lambda r:(-r.days_late,r.due_on))
+    rows=sorted(balances(request.user),key=lambda r:(-r.days_late,r.due_on or date.max))
     return render(request,'core/finance.html',dict(form=form,rows=rows))
 
 
@@ -201,15 +211,41 @@ def payment(request,pk):
     if not request.user.has_perm('core.view_receivable'):raise PermissionDenied
     row=get_object_or_404(Receivable,pk=pk,company__in=companies(request.user))
     form=PaymentForm(request.POST or None,initial={'date':timezone.localdate(),'reference':uuid.uuid4()})
+    invoice_form=ExternalInvoiceForm(request.POST if request.method=='POST' and request.POST.get('action')=='external_invoice' else None)
     if request.method=='POST':
         if not request.user.has_perm('core.change_receivable'):raise PermissionDenied
-        if form.is_valid():
+        if request.POST.get('action')=='external_invoice':
+            if invoice_form.is_valid():
+                from .sales import record_external_invoice
+                try:
+                    record_external_invoice(request.user,row,invoice_form.cleaned_data['number'],invoice_form.cleaned_data['issued_on'])
+                    messages.success(request,'Nota externa registrada e vencimento calculado pelo prazo combinado.');return redirect('payment',pk=pk)
+                except ValidationError as exc:invoice_form.add_error(None,exc)
+            form=PaymentForm(initial={'date':timezone.localdate(),'reference':uuid.uuid4()})
+        elif form.is_valid():
             try:
                 receive(request.user,row,form.cleaned_data['amount'],form.cleaned_data['date'],str(form.cleaned_data['reference']))
                 messages.success(request,'Recebimento registrado. Saldo e situação do cliente atualizados.');return redirect('finance')
             except ValidationError as exc:form.add_error(None,exc)
     row.balance=row.amount-(row.payments.aggregate(total=Sum('amount'))['total'] or Decimal(0))
-    return render(request,'core/payment.html',dict(row=row,form=form,payments=row.payments.order_by('-date')))
+    return render(request,'core/payment.html',dict(row=row,form=form,invoice_form=invoice_form,payments=row.payments.order_by('-date')))
+
+
+@login_required
+def client_sales(request,pk):
+    if request.method!='POST':return HttpResponse(status=405)
+    client=get_object_or_404(Client.objects.select_related('company'),pk=pk,company__in=companies(request.user))
+    form=DeliveredSalesForm(request.POST)
+    if form.is_valid():
+        from .sales import recognize_delivered_sales
+        try:
+            values=form.cleaned_data
+            account=recognize_delivered_sales(request.user,client,values['start'],values['end'],values['terms_days'],values['evidence'])
+            messages.success(request,'Entregas registradas nas vendas e no histórico. Conta a receber criada, aguardando nota externa para calcular o vencimento.')
+            return redirect('payment',pk=account.pk)
+        except ValidationError as exc:messages.error(request,'; '.join(exc.messages))
+    else:messages.error(request,'Confira o período, prazo e confirmação das entregas.')
+    return redirect('client_detail',pk=pk)
 
 
 @login_required

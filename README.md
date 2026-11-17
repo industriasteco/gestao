@@ -143,3 +143,14 @@ No produto, mantenha a unidade de produção (`UN`) e informe **Peso por unidade
 O pedido preserva a unidade e a quantidade para a produção, além da unidade comercial e do fator. O preço é congelado na emissão. Comprovantes, romaneios, painel comercial e fechamento usam o peso convertido no cálculo; o CSV de fechamento aprovado exporta `KG`, peso e preço por kg. Preços em unidade diferente bloqueiam a emissão até conferência. Documentos anteriores mantêm seus valores. Novas rotinas usam a condição do cliente, sem converter a quantidade de produção.
 
 A migration `0026` acrescenta os campos sem modificar preços ou pedidos existentes. Pesos e condições de cada cliente são configuração privada. Para pedidos retroativos, o preço informado no item passa a valer a partir da data de entrega; em branco, usa a condição vigente naquela data. O lançamento das quantidades históricas depende dos dados confirmados por dia e produto. Não há emissão de NF-e pelo ERP.
+
+### Relatório operacional no histórico do cliente
+
+Na ficha do cliente, **Relatórios para enviar ao cliente** gera e preserva um PDF por período com pedidos reais, unidades originais, pesos convertidos e preços. O resumo soma os valores das linhas diárias, arredondados para centavos; o detalhamento mantém as datas e mostra o valor total de cada linha. Pedidos cancelados e testes ficam fora. O relatório aceita pedidos ainda em conferência e não altera entrega, contas, pagamentos ou fechamento aprovado. As mesmas informações geram o mesmo documento; mudanças geram uma nova versão preservada no histórico. O acesso exige as permissões comerciais/financeiras e a empresa do usuário.
+
+
+### Vendas entregues, faturamento e recebíveis
+
+Na ficha do cliente, **Vendas entregues e contas a receber** confirma as entregas reais do período, preserva os preços e gera uma conta vinculada aos pedidos. A confirmação exige evidência e permissões financeiras/de entrega. Repetir o mesmo período não duplica a conta; períodos sobrepostos exigem revisão. Vendas confirmadas alimentam o faturamento gerencial, o ranking e o histórico sem exigir uma NF-e emitida pelo ERP. Não são criados protocolos ou comprovantes fictícios.
+
+O vencimento pode ficar pendente com prazo em dias após a emissão da nota externa. A conta já entra no saldo a receber, mas não entra em atraso sem vencimento definido. Na conta, registre o número e a data da nota emitida no outro sistema para calcular o vencimento. O painel separa as vendas registradas das contas ainda a faturar externamente. Recebimentos continuam sendo confirmados separadamente. A migration `0027` acrescenta vínculo dos pedidos, condições e dados da nota externa, e permite vencimento pendente.

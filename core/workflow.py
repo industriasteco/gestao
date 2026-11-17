@@ -83,7 +83,8 @@ def deliver(user,order_id,evidence):
 def release(user,order_id):
     order=Order.objects.select_for_update().get(pk=order_id)
     if order.status=='LIBERADO_FECHAMENTO':return order
-    if order.status!='ENTREGUE' or not order.delivered_at or not order.issued_snapshot:raise ValidationError('Entrega comprovada e preços congelados são obrigatórios.')
+    if order.status!='ENTREGUE' or not order.delivered_at or not (order.issued_snapshot or order.delivery_evidence):raise ValidationError('Entrega comprovada e preços congelados são obrigatórios.')
+    if not order.items.filter(quantity__gt=0).exists() or order.items.filter(quantity__gt=0,unit_price_snapshot__isnull=True).exists():raise ValidationError('Entrega comprovada e preços congelados são obrigatórios.')
     order.status='LIBERADO_FECHAMENTO';order.save(update_fields=['status'])
     event(user,order,'LIBERAR_TESTE' if order.synthetic else 'LIBERAR_PARA_FECHAMENTO',{'status':'ENTREGUE'},{'status':'LIBERADO_FECHAMENTO'})
     return order
@@ -96,6 +97,7 @@ def cancel(user,order_id,reason):
     with transaction.atomic():
         order=Order.objects.select_for_update().get(pk=order_id)
         if StatementLine.objects.filter(order=order,active=True).exists():raise ValidationError('Pedido incluído em fechamento de cliente. Revise o fechamento antes de cancelar.')
+        if Receivable.objects.filter(company=order.company,voided=False,source_orders__contains=[str(order.pk)]).exists():raise ValidationError('Pedido vinculado a conta a receber. Revise o financeiro antes de cancelar.')
         if order.status=='FECHADO':raise ValidationError('Fechamento aprovado: correção comercial exige processo separado.')
         if order.status=='CANCELADO':return
         before=order.status;order.status='CANCELADO';order.save(update_fields=['status'])

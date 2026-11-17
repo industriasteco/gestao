@@ -166,8 +166,19 @@ class InlinePriceForm(forms.Form):
 class ReceivableForm(ScopedForm):
     class Meta:
         model=Receivable
-        fields=['company','client','reference','issued_on','due_on','amount','notes']
-        labels={'company':'Empresa','client':'Cliente','reference':'Número / referência única','issued_on':'Emissão','due_on':'Vencimento','amount':'Valor confirmado (R$)','notes':'Observações'}
+        fields=['company','client','reference','issued_on','due_on','terms_days','amount','notes']
+        labels={'company':'Empresa','client':'Cliente','reference':'Número / referência única','issued_on':'Data do lançamento','due_on':'Vencimento confirmado (se houver)','terms_days':'Prazo após a emissão da nota (dias)','amount':'Valor confirmado (R$)','notes':'Observações'}
+
+class DeliveredSalesForm(forms.Form):
+    start=forms.DateField(label='Pedidos de',widget=forms.DateInput(attrs={'type':'date'}))
+    end=forms.DateField(label='Até',widget=forms.DateInput(attrs={'type':'date'}))
+    terms_days=forms.IntegerField(label='Prazo após emissão da nota (dias)',min_value=0,max_value=3650,initial=30)
+    evidence=forms.CharField(label='Confirmação / referência das entregas',min_length=5,max_length=2000)
+    confirm=forms.BooleanField(label='Confirmo que os pedidos do período já foram entregues e devem gerar conta a receber.')
+
+class ExternalInvoiceForm(forms.Form):
+    number=forms.CharField(label='Número / série da nota no sistema externo',max_length=50)
+    issued_on=forms.DateField(label='Data de emissão da nota externa',widget=forms.DateInput(attrs={'type':'date'}))
 
 class PaymentForm(forms.Form):
     amount=forms.DecimalField(label='Valor recebido (R$)', min_value=Decimal('0.01'), max_digits=15, decimal_places=2)
