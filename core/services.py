@@ -60,7 +60,9 @@ def prepare(user, day, automatic_only=False):
                 if not product_available(extra.product,rule.company):raise ValidationError('Produto extra indisponível para esta empresa')
                 lines[extra.product_id]=(extra.product,lines.get(extra.product_id,(None,Decimal(0)))[1]+extra.quantity)
         for product,qty in lines.values():
-            OrderItem.objects.create(order=order,product=product,product_name=product.name,unit=product.unit,quantity=qty)
+            from .billing import configure_item
+            item=configure_item(OrderItem(order=order,product=product,product_name=product.name,unit=product.unit,quantity=qty))
+            item.full_clean();item.save()
         Audit.objects.create(actor=user,entity=str(order.pk),action='PRE_LANCAR',after={'date':str(day),'source':'RECORRENCIA'})
         count+=1
     return count
@@ -117,7 +119,7 @@ def prices_on(day):
     return Price.objects.filter(superseded=False,valid_from__lte=day).filter(Q(valid_until__isnull=True)|Q(valid_until__gte=day))
 
 
-def price_for(company,client,product,day):
+def price_condition_for(company,client,product,day):
     if not product_available(product,company) or (client and client.company_id!=company.pk):raise ValidationError('Empresa incompatível')
     prices=prices_on(day).filter(product=product)
     choices=[]
@@ -127,8 +129,11 @@ def price_for(company,client,product,day):
     for selected in choices:
         if not selected.exists():continue
         if selected.count()!=1:raise ValidationError('Preço ausente ou vigências sobrepostas')
-        return selected.get().amount
+        return selected.get()
     raise ValidationError('Preço ausente ou vigências sobrepostas')
+
+def price_for(company,client,product,day):
+    return price_condition_for(company,client,product,day).amount
 
 def financial_operation(*args,**kwargs):
     raise ValidationError('Emissão, entrega financeira e fechamento bloqueados até homologação.')
@@ -140,7 +145,8 @@ def adjust(user,order_id,quantity,reason,item_id=None):
     if order.status!='PRE_LANCADO': raise ValidationError('Somente pré-lançamentos podem ser ajustados')
     if not reason.strip() or not quantity.is_finite() or quantity<0: raise ValidationError('Quantidade ou motivo inválido')
     item=order.items.get(pk=item_id) if item_id else order.items.get()
-    before=str(item.quantity);item.quantity=quantity;item.full_clean();item.save()
+    from .billing import validate_quantity
+    before=str(item.quantity);item.quantity=quantity;validate_quantity(item);item.full_clean();item.save()
     Audit.objects.create(actor=user,entity=str(order.pk),action='AJUSTAR',before={'quantity':before},after={'quantity':str(quantity)},reason=reason)
 
 @transaction.atomic

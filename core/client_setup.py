@@ -17,7 +17,7 @@ def client_prices_data(formset,company):
 
 
 def save_client_prices(user,client,rows):
-    for row in rows:set_current_price(user,client.company,row['product'],row['amount'],client)
+    for row in rows:set_current_price(user,client.company,row['product'],row['amount'],client,billing_unit=row.get('billing_unit'))
 
 
 def recurring_days(client):

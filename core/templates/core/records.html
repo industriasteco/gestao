@@ -44,7 +44,7 @@
           {% elif kind == 'clientes' %}<span class="tag {% if row.financial_status == 'Inadimplente' %}danger{% else %}neutral{% endif %}">{{ row.financial_status }}</span>
           {% else %}{{ row.unit }}{% endif %}
         </td>
-        {% if kind == 'precos' %}<td>{{ row.amount|brl4 }}</td>{% if user.is_superuser %}<td><a class="button secondary" href="{% url 'price_edit' row.pk %}">Alterar preço</a></td>{% endif %}{% endif %}
+        {% if kind == 'precos' %}<td>{{ row.amount|brl4 }} / {{ row.billing_unit|default:row.product.unit }}</td>{% if user.is_superuser %}<td><a class="button secondary" href="{% url 'price_edit' row.pk %}">Alterar preço</a></td>{% endif %}{% endif %}
         {% if kind == 'produtos' %}<td>{{ row.production_cost|brl }}</td><td>{{ row.current_price|brl4 }}</td><td>{{ row.gross_profit|brl }}</td>{% endif %}
       </tr>{% empty %}<tr><td colspan="6" class="empty">{% if kind == 'precos' %}Nenhum preço atual cadastrado. Escolha o produto e informe o valor abaixo.{% else %}Nenhum cadastro ainda. Comece pelo formulário abaixo.{% endif %}</td></tr>{% endfor %}
     </tbody>

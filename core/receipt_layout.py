@@ -99,7 +99,13 @@ def common_receipt(c,s,items,part,parts,x,top,width,height,customer):
         c.line(x,bottom,x+width,bottom)
         if index>=len(items):continue
         item=items[index]
-        cells=[number(item['quantity'],3).rstrip('0').rstrip(','),item['name'],number(item['price']) if customer else '',number(item['total']) if customer else '']
+        converted=item.get('ordered_unit',item['unit'])!=item['unit']
+        quantity=number(item['quantity'],6 if converted else 3).rstrip('0').rstrip(',')
+        description=item['name']
+        if converted:
+            quantity+=' '+item['unit']
+            description+=f" ({item['ordered_quantity']} {item['ordered_unit']})"
+        cells=[quantity,description,(number(item['price'])+' / '+item['unit'] if converted else number(item['price'])) if customer else '',number(item['total']) if customer else '']
         left=x
         for col,(value,w) in enumerate(zip(cells,widths)):
             text(c,value,left+3,bottom+row_height-7,w-6,6.2,align='left' if col==1 else 'right',max_lines=2 if col==1 else 1,leading=6)

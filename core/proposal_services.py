@@ -5,7 +5,7 @@ from decimal import Decimal,ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import Company,CommercialProposal,ProposalItem,ProposalProfile,Document
-from .services import authorize,price_for
+from .services import authorize,price_for,price_condition_for
 from .catalog import product_available
 from .receipt_layout import brand_code
 from .workflow import event
@@ -42,7 +42,11 @@ def resolve_lines(company,client,day,lines):
             if not product_available(product,company) or not product.active:raise ValidationError('Produto inativo ou indisponível para esta empresa.')
             description=description or product.name;unit=unit or product.unit
             if amount is None:
-                try:amount=price_for(company,client,product,day)
+                try:
+                    condition=price_condition_for(company,client,product,day)
+                    if (condition.billing_unit or product.unit)!=unit:
+                        raise ValidationError('Unidade do preço diferente da proposta.')
+                    amount=condition.amount
                 except ValidationError:raise ValidationError('Preço ausente ou sobreposto. Informe o valor unitário negociado para cada item.')
         if not description or len(description)>500:raise ValidationError('Informe a descrição do serviço ou produto, com até 500 caracteres.')
         if amount is None:raise ValidationError('Informe o valor unitário dos itens que não estão no catálogo.')

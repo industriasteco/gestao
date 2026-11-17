@@ -36,7 +36,7 @@ orderForm.addEventListener('click', event => {
   const form = dialog.querySelector('form');
   if (kind === 'client') {
     const source = orderForm.querySelector('.order-item select');
-    for (const select of form.querySelectorAll('[data-client-prices] select')) {
+    for (const select of form.querySelectorAll('[data-client-prices] select[name$="-product"]')) {
       for (const option of source.options) {
         if (!Array.from(select.options).some(current => current.value === option.value)) select.add(option.cloneNode(true));
       }
@@ -88,8 +88,9 @@ for (const [kind, dialog] of Object.entries(dialogs)) {
         throw new Error(messages.join('\n') || result.message || 'Confira os dados e tente novamente.');
       }
       const record = result.record;
+      orderForm.dispatchEvent(new CustomEvent("billing-record-saved", {detail: record}));
       if (kind === 'client') clientSchedules[record.id] = {weekdays:record.weekdays, configured:record.configured};
-      const selects = kind === 'client' ? [clientSelect] : document.querySelectorAll('#order-entry-form .order-item select, #quick-client-dialog [data-client-prices] select');
+      const selects = kind === 'client' ? [clientSelect] : document.querySelectorAll('#order-entry-form .order-item select[name$="-product"], #quick-client-dialog [data-client-prices] select[name$="-product"]');
       for (const select of selects) {
         if (!Array.from(select.options).some(option => option.value === record.id)) select.add(new Option(record.name, record.id));
       }
@@ -125,4 +126,5 @@ document.querySelector('#add-order-item').addEventListener('click', () => {
   select.value = '';
   total.value = index + 1;
   select.focus();
+  orderForm.dispatchEvent(new Event("billing-item-added"));
 });

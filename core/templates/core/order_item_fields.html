@@ -3,5 +3,7 @@
   {{ item.non_field_errors }}
   <p>{{ item.product.label_tag }}<span class="entry-field-actions">{{ item.product }}{% if user.is_superuser %}<button type="button" class="secondary" data-quick-open="product">＋ Novo produto</button>{% endif %}</span>{{ item.product.errors }}</p>
   <p>{{ item.quantity.label_tag }}{{ item.quantity }}{{ item.quantity.errors }}</p>
+  <p>{{ item.billing_unit.label_tag }}{{ item.billing_unit }}<span class="helptext">{{ item.billing_unit.help_text }}</span>{{ item.billing_unit.errors }}</p>
+  <p class="billing-preview subtitle" role="status" aria-live="polite"></p>
   {% if item.client_price %}<p>{{ item.client_price.label_tag }}{{ item.client_price }}<span class="helptext">{{ item.client_price.help_text }}</span>{{ item.client_price.errors }}</p>{% endif %}
 </fieldset>

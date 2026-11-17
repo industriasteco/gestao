@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from .models import *
 from .services import authorize,price_for,companies,require
 from . import pdf
+from .billing import configure_item,item_price,snapshot as billing_snapshot,validate_quantity
 
 MONEY=Decimal('0.01')
 
@@ -46,10 +47,12 @@ def issue(user,order_id):
     items=[];total=Decimal(0)
     for item in order.items.select_related('product').filter(quantity__gt=0).order_by('pk'):
         if not item.product.active:raise ValidationError('Produto inativo.')
-        amount=price_for(order.company,order.client,item.product,order.date)
-        line=(amount*item.quantity).quantize(MONEY,rounding=ROUND_HALF_UP)
-        item.unit_price_snapshot=amount;item.save(update_fields=['unit_price_snapshot'])
-        items.append(dict(name=item.product_name,unit=item.unit,quantity=str(item.quantity),price=str(amount),total=str(line)))
+        if not item.billing_unit and item.unit_price_snapshot is None:configure_item(item)
+        validate_quantity(item)
+        amount=item_price(item)
+        row=billing_snapshot(item,amount);line=Decimal(row['total'])
+        item.unit_price_snapshot=amount;item.save(update_fields=['unit_price_snapshot','billing_unit','billing_factor'])
+        items.append(row)
         total+=line
     if not items:raise ValidationError('Pedido sem itens positivos.')
     # A identificação da emissora vem do cadastro confirmado; nunca presumir CNPJ.

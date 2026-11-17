@@ -1,8 +1,9 @@
 import uuid
+from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from django.db.models import Q, F
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator
 
 class Entity(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -49,8 +50,10 @@ class Product(Entity):
     unit = models.CharField(max_length=20, default='UN')
     active = models.BooleanField(default=True)
     production_cost = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    unit_weight_g = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True, validators=[MinValueValidator(Decimal('.001'))])
     class Meta:
-        constraints = [models.CheckConstraint(condition=Q(production_cost__isnull=True)|Q(production_cost__gte=0), name='product_cost_positive')]
+        constraints = [models.CheckConstraint(condition=Q(production_cost__isnull=True)|Q(production_cost__gte=0), name='product_cost_positive'),
+                       models.CheckConstraint(condition=Q(unit_weight_g__isnull=True)|Q(unit_weight_g__gt=0), name='product_weight_positive')]
     def __str__(self): return self.name
 
 class Price(Entity):
@@ -61,6 +64,7 @@ class Price(Entity):
     valid_from = models.DateField()
     valid_until = models.DateField(null=True, blank=True)
     superseded = models.BooleanField(default=False)
+    billing_unit = models.CharField(max_length=20, blank=True, default='', choices=[('', 'Unidade do produto'), ('KG', 'Quilograma (KG)')])
     class Meta:
         constraints = [models.CheckConstraint(condition=Q(amount__gte=0),name='positive_price'),models.CheckConstraint(condition=Q(valid_until__isnull=True)|Q(valid_until__gte=F('valid_from')),name='price_dates')]
 
@@ -120,8 +124,15 @@ class OrderItem(Entity):
     unit = models.CharField(max_length=20)
     quantity = models.DecimalField(max_digits=15,decimal_places=3)
     unit_price_snapshot = models.DecimalField(max_digits=15,decimal_places=4,null=True,blank=True)
+    billing_unit = models.CharField(max_length=20, blank=True, default='')
+    billing_factor = models.DecimalField(max_digits=15, decimal_places=6, default=Decimal('1'))
+    @property
+    def billed_unit(self): return self.billing_unit or self.unit
+    @property
+    def billed_quantity(self): return self.quantity * self.billing_factor
     class Meta:
-        constraints = [models.CheckConstraint(condition=Q(quantity__gte=0),name='item_quantity')]
+        constraints = [models.CheckConstraint(condition=Q(quantity__gte=0),name='item_quantity'),
+                       models.CheckConstraint(condition=Q(billing_factor__gt=0),name='item_billing_factor_positive')]
 
 class ImportBatch(Entity):
     filename = models.CharField(max_length=200)

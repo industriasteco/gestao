@@ -8,6 +8,7 @@ from .services import authorize, price_for
 from .workflow import event
 from .management_services import receive
 from .catalog import product_available
+from .billing import subtotal
 
 
 @transaction.atomic
@@ -56,7 +57,7 @@ def build_manifest(user, route, day):
             if amount is None:
                 try:amount=price_for(order.company,order.client,item.product,day)
                 except ValidationError:complete=False
-            if amount is not None:total+=(amount*item.quantity).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
+            if amount is not None:total+=subtotal(item,amount)
             snapshot.append({'product':item.product_name,'quantity':str(item.quantity),'unit':item.unit,'price':str(amount) if amount is not None else None})
         if not snapshot:raise ValidationError('Há um pedido sem itens positivos; revise antes de gerar o romaneio.')
         ManifestLine.objects.create(manifest=manifest,order=order,sequence=stop.sequence,client_name=order.client.name,address=order.client.address,

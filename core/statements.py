@@ -8,6 +8,7 @@ from django.utils import timezone
 from .models import Company, Order, ClientStatement, StatementLine, Document
 from .services import authorize
 from .workflow import event
+from .billing import subtotal as billing_subtotal,decimal_text
 
 
 def eligible_orders(company,client,start,end):
@@ -36,10 +37,11 @@ def create_statement(user,company,client,start,end,purchase_order=''):
         for item in order.items.all():
             if item.quantity<=0:continue
             if item.unit_price_snapshot is None:raise ValidationError('Há pedido sem preço congelado na emissão; revise o documento antes de fechar.')
-            subtotal=(item.quantity*item.unit_price_snapshot).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
+            subtotal=billing_subtotal(item,item.unit_price_snapshot)
             amount+=subtotal
             lines.append({'date':str(order.date),'order':str(order.pk),'number':order.commercial_number,'purchase_order':order.issued_snapshot.get('purchase_order','') or purchase_order,
-                'product':item.product_name,'unit':item.unit,'quantity':str(item.quantity),'price':str(item.unit_price_snapshot),'total':str(subtotal)})
+                'product':item.product_name,'unit':item.billed_unit,'quantity':decimal_text(item.billed_quantity),'price':str(item.unit_price_snapshot),'total':str(subtotal),
+                'ordered_quantity':str(item.quantity),'ordered_unit':item.unit,'billing_factor':str(item.billing_factor)})
         if not amount and not order.items.filter(quantity__gt=0).exists():raise ValidationError('Há pedido entregue sem itens positivos.')
         order_totals[order.pk]=amount;total+=amount
     snapshot={'company':company.name,'company_tax_id':company.cnpj or '', 'client':client.name,'legal_name':client.legal_name,

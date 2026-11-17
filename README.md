@@ -135,3 +135,11 @@ Ao abrir **Pedidos e produção** numa data atual ou futura, as novas rotinas au
 Modo operacional mantém pedidos de teste separados, emite comprovantes de entrega não fiscais, alimenta vendas gerenciais e permite entrega/fechamento/malote. Não habilita transmissão de NF-e/NFC-e nem cobrança bancária automática. A permissão de preparar dias foi incluída no perfil Produção, dentro da empresa do colaborador, sem permissões financeiras.
 
 A data da produção/entrega escolhida acompanha Novo pedido; o horário do lançamento é registrado separadamente. Produção realizada permite registrar o lote feito hoje e relacioná-lo aos pedidos/entregas de amanhã, mantendo a data física correta. Confirmação de entrega operacional futura é bloqueada até a data prevista. [Roteiro completo do primeiro dia](docs/COMECE_HOJE.md).
+
+### Pedidos em unidades e faturamento em kg
+
+No produto, mantenha a unidade de produção (`UN`) e informe **Peso por unidade (g)**. Na condição de preço do cliente, selecione **Quilograma (KG)** e informe o valor por kg. Em **Novo pedido**, a quantidade continua sendo o número de unidades; **Unidade do faturamento / preço** permite seguir a condição cadastrada ou escolher a unidade explicitamente. A prévia mostra quantidade, fator, kg e valor previsto. Não exige peso para produtos já cadastrados em `KG`.
+
+O pedido preserva a unidade e a quantidade para a produção, além da unidade comercial e do fator. O preço é congelado na emissão. Comprovantes, romaneios, painel comercial e fechamento usam o peso convertido no cálculo; o CSV de fechamento aprovado exporta `KG`, peso e preço por kg. Preços em unidade diferente bloqueiam a emissão até conferência. Documentos anteriores mantêm seus valores. Novas rotinas usam a condição do cliente, sem converter a quantidade de produção.
+
+A migration `0026` acrescenta os campos sem modificar preços ou pedidos existentes. Pesos e condições de cada cliente são configuração privada. Para pedidos retroativos, o preço informado no item passa a valer a partir da data de entrega; em branco, usa a condição vigente naquela data. O lançamento das quantidades históricas depende dos dados confirmados por dia e produto. Não há emissão de NF-e pelo ERP.

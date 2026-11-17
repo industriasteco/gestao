@@ -17,6 +17,10 @@ from .forms import *
 from . import workflow
 from .client_setup import client_prices_data,save_client_prices,save_recurring_items
 from .catalog import products_for_user,product_available,product_catalog_label,visible_prices,price_scope_label
+from .billing import configure_item,item_price
+
+def price_billing_data(rows):
+    return [{'id':str(p.pk),'company':str(p.company_id),'client':str(p.client_id or ''),'product':str(p.product_id),'unit':p.billing_unit,'amount':str(p.amount),'start':str(p.valid_from),'end':str(p.valid_until or '')} for p in rows]
 
 @login_required
 def guide(request):return render(request,'core/guide.html')
@@ -43,7 +47,7 @@ def records(request,kind):
                 with transaction.atomic():
                     if kind=='precos':
                         data=form.cleaned_data
-                        obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'))
+                        obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'),billing_unit=data.get('billing_unit'))
                     else:
                         obj=form.save()
                         if kind=='clientes':save_client_prices(request.user,obj,price_rows)
@@ -101,7 +105,9 @@ def order_detail(request,pk):
         return redirect('order',pk=pk)
     price_preview=[]
     for item in order.items.select_related('product').all():
-        try:price=workflow.price_for(order.company,order.client,item.product,order.date)
+        try:
+            if not item.billing_unit and item.unit_price_snapshot is None:configure_item(item)
+            price=item.unit_price_snapshot if item.unit_price_snapshot is not None else item_price(item)
         except ValidationError:price='PENDENTE DE CONFERÊNCIA'
         price_preview.append((item,price))
     return render(request,'core/order.html',dict(order=order,form=form,documents=Document.objects.filter(order=order),price_preview=price_preview,can_confirm_delivery=order.synthetic or order.date<=timezone.localdate()))
@@ -167,8 +173,9 @@ def new_order(request):
             for line in lines:
                 amount=line.get('client_price')
                 if amount is not None:
-                    previous=prices.setdefault(line['product'].pk,amount)
-                    if previous!=amount:raise ValidationError('Informe o mesmo preço nas linhas repetidas de um produto.')
+                    condition=(amount,line.get('billing_unit',''))
+                    previous=prices.setdefault(line['product'].pk,condition)
+                    if previous!=condition:raise ValidationError('Informe o mesmo preço e unidade de faturamento nas linhas repetidas de um produto.')
             with transaction.atomic():
                 Company.objects.select_for_update().get(pk=company.pk)
                 key='manual:'+str(form.cleaned_data['key'])
@@ -176,8 +183,15 @@ def new_order(request):
                 if order is None:
                     order=form.save(commit=False);order.idempotency_key=key;order.synthetic=not company.operational_enabled;order.save()
                     for line in lines:
-                        p=line['product'];OrderItem.objects.create(order=order,product=p,product_name=p.name,unit=p.unit,quantity=line['quantity'])
-                        if p.pk in prices:set_current_price(request.user,company,p,prices.pop(p.pk),order.client)
+                        p=line['product']
+                        if p.pk in prices:
+                            amount,basis=prices.pop(p.pk)
+                            set_current_price(request.user,company,p,amount,order.client,billing_unit=basis,effective_on=order.date)
+                        item=configure_item(OrderItem(order=order,product=p,product_name=p.name,unit=p.unit,quantity=line['quantity']),line.get('billing_unit',''))
+                        if form.cleaned_data.get('repeat_weekly'):
+                            default=configure_item(OrderItem(order=order,product=p,product_name=p.name,unit=p.unit,quantity=line['quantity']))
+                            if item.billed_unit!=default.billed_unit:raise ValidationError('Para repetir o pedido, cadastre a unidade do faturamento na condição de preço do cliente.')
+                        item.full_clean();item.save()
                     if form.cleaned_data.get('repeat_weekly'):
                         save_recurring_items(request.user,order.client,[line for line in lines if line['quantity']>0],order.slot,order.time,order.shift,order.notes,origin=order,replace=True)
                     workflow.event(request.user,order,'PEDIDO_MANUAL_TESTE' if order.synthetic else 'PEDIDO_MANUAL',after={'items':len(lines)})
@@ -186,7 +200,9 @@ def new_order(request):
         except ValidationError as e:form.add_error(None,e)
     configured=set(Recurrence.objects.filter(company__in=companies(request.user),auto_prepare=True,archived=False).values_list('client_id',flat=True))
     schedules={str(client.pk):{'weekdays':client.recurring_weekdays,'configured':client.pk in configured} for client in Client.objects.filter(company__in=companies(request.user))}
-    return render(request,'core/new_order.html',{'form':form,'items':items,'client_schedules':schedules,
+    billing_products={str(p.pk):{'unit':p.unit,'weight_g':str(p.unit_weight_g or ''),'company':str(p.company_id)} for p in items.empty_form.fields['product'].queryset}
+    billing_prices=price_billing_data(visible_prices(request.user).filter(superseded=False))
+    return render(request,'core/new_order.html',{'form':form,'items':items,'client_schedules':schedules,'billing_products':billing_products,'billing_prices':billing_prices,
         'quick_client_prices':client_price_forms(request.user,prefix='quick_client_prices'),
         'quick_client':ClientForm(user=request.user,prefix='quick_client'),
         'quick_product':ProductForm(user=request.user,prefix='quick_product')})
@@ -221,7 +237,7 @@ def quick_record(request,kind):
     try:price_rows=client_prices_data(client_prices,company) if client_prices is not None else []
     except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
     values={name:str(value) if value is not None else '' for name,value in form.cleaned_data.items()}
-    if client_prices is not None:values['prices']=[{'product':str(row['product'].pk),'amount':str(row['amount'])} for row in price_rows]
+    if client_prices is not None:values['prices']=[{'product':str(row['product'].pk),'amount':str(row['amount']),'billing_unit':row.get('billing_unit','')} for row in price_rows]
     created=False
     try:
         with transaction.atomic():
@@ -240,6 +256,8 @@ def quick_record(request,kind):
                 created=True
     except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
     record={'id':str(obj.pk),'name':obj.name,'company':str(obj.company_id)}
+    if kind=='produtos':record.update(unit=obj.unit,weight_g=str(obj.unit_weight_g or ''))
+    record['billing_prices']=price_billing_data(Price.objects.filter(superseded=False,**({'client':obj} if kind=='clientes' else {'product':obj,'client__isnull':True})))
     if kind=='clientes':record.update(weekdays=obj.recurring_weekdays,configured=Recurrence.objects.filter(client=obj,auto_prepare=True,archived=False).exists())
     return JsonResponse({'record':record,'created':created},status=201 if created else 200)
 

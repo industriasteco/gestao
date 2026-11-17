@@ -8,6 +8,11 @@ from .catalog import products_for_user,available_products,product_available
 
 WEEKDAYS=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'Sábado'),(7,'Domingo')]
 
+def billing_unit_field():
+    return forms.ChoiceField(label='Unidade do faturamento / preço', required=False,
+        choices=[('', 'Usar condição já cadastrada'), ('PRODUCT', 'Unidade do produto'), ('KG', 'Quilograma (KG)')],
+        help_text='Em kg, informe o preço por kg. Para pães pedidos em unidades, cadastre o peso em gramas no produto.')
+
 class ScopedForm(forms.ModelForm):
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
@@ -43,17 +48,19 @@ class ProductForm(ScopedForm):
     amount=forms.DecimalField(label='Valor de venda padrão (R$)', required=False, min_value=0, max_digits=15, decimal_places=4)
     production_cost=forms.DecimalField(label='Custo de produção por unidade (R$)',required=False,min_value=0,max_digits=15,decimal_places=4)
     class Meta:
-        model=Product;fields=['company','name','unit','production_cost']
-        help_texts={'company':'Os produtos da TECO e da NONA ficam disponíveis nas duas empresas automaticamente.'}
-        labels={'company':'Empresa do cadastro','name':'Nome do produto','unit':'Unidade (UN, KG...)','production_cost':'Custo de produção por unidade (R$)'}
+        model=Product;fields=['company','name','unit','unit_weight_g','production_cost']
+        help_texts={'company':'Os produtos da TECO e da NONA ficam disponíveis nas duas empresas automaticamente.', 'unit_weight_g':'Ex.: 35 g por pão. A quantidade de produção permanece em UN; o faturamento pode ser em kg por cliente.'}
+        labels={'company':'Empresa do cadastro','name':'Nome do produto','unit':'Unidade de produção (UN, KG...)','unit_weight_g':'Peso por unidade (g)','production_cost':'Custo de produção por unidade (R$)'}
 
 class PriceForm(ScopedForm):
+    billing_unit=billing_unit_field()
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
     class Meta:
         model=Price;fields=['company','client','product','amount']
         labels={'company':'Empresa','client':'Cliente (vazio = preço padrão)','product':'Produto','amount':'Preço de venda atual (R$)'}
 
 class PriceAmountForm(forms.Form):
+    billing_unit=billing_unit_field()
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
 
 class RecurrenceForm(ScopedForm):
@@ -104,13 +111,15 @@ class ManualOrderForm(ScopedForm):
 class ManualItemForm(forms.Form):
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
     quantity=forms.DecimalField(label='Quantidade',min_value=0,max_digits=15,decimal_places=3)
-    client_price=forms.DecimalField(label='Preço negociado para este cliente (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4,help_text='Ao salvar o pedido, este valor fica cadastrado para o cliente. Em branco, mantém o preço já configurado.')
+    billing_unit=billing_unit_field()
+    client_price=forms.DecimalField(label='Preço por unidade do faturamento (R$, opcional)',required=False,min_value=0,max_digits=15,decimal_places=4,help_text='Este preço fica cadastrado para o cliente a partir da data da entrega, na unidade de faturamento escolhida. Em branco, mantém a condição já configurada.')
     def __init__(self,*args,user,**kwargs):
         super().__init__(*args,**kwargs)
         self.fields['product'].queryset=products_for_user(user).filter(active=True)
         if not user.is_superuser:self.fields.pop('client_price')
 
 class ClientPriceItemForm(forms.Form):
+    billing_unit=billing_unit_field()
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
     amount=forms.DecimalField(label='Preço para este cliente (R$)',min_value=0,max_digits=15,decimal_places=4)
     def __init__(self,*args,user,**kwargs):
@@ -147,6 +156,7 @@ class ClientRoutineForm(forms.Form):
         self.fields['product'].queryset=available_products(company).filter(active=True).order_by('name')
 
 class InlinePriceForm(forms.Form):
+    billing_unit=billing_unit_field()
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')
     amount = forms.DecimalField(label='Valor negociado (R$)', min_value=0, max_digits=15, decimal_places=4)
     def __init__(self, *args, company, **kwargs):
