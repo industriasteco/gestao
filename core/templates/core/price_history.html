@@ -4,7 +4,7 @@
   {% for p in price_history %}
   <tr>
     <td>{{ p.product }}<br><small>{{ p.company }} · {{ p.client|default:'Preço padrão' }}</small></td>
-    <td>{{ p.amount|brl4 }} / {{ p.billing_unit|default:p.product.unit }}</td>
+    <td>{{ p.amount|brl4 }} / {{ p.billing_unit|default:p.product.unit }}{% if p.billing_factor %}<br><small>Fator: {{ p.billing_factor }} kg/UN</small>{% endif %}</td>
     <td>{% if p.superseded %}Substituído{% elif p.valid_from > today %}Agendamento anterior{% elif p.valid_until and p.valid_until < today %}Anterior{% else %}<span class="tag">Atual</span>{% endif %}</td>
     <td>{{ p.valid_from|date:'d/m/Y' }}{% if p.valid_until %} a {{ p.valid_until|date:'d/m/Y' }}{% endif %}</td>
   </tr>

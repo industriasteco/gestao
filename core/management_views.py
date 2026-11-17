@@ -131,7 +131,7 @@ def client_detail(request,pk):
             price=InlinePriceForm(request.POST,company=client.company)
             if price.is_valid():
                 try:
-                    set_current_price(request.user,client.company,price.cleaned_data['product'],price.cleaned_data['amount'],client,billing_unit=price.cleaned_data.get('billing_unit'))
+                    set_current_price(request.user,client.company,price.cleaned_data['product'],price.cleaned_data['amount'],client,billing_unit=price.cleaned_data.get('billing_unit'),billing_factor=price.cleaned_data.get('billing_factor'),effective_on=price.cleaned_data.get('effective_on'))
                     messages.success(request,'Preço negociado salvo com histórico.');return redirect('client_detail',pk=pk)
                 except ValidationError as exc:price.add_error(None,exc)
     accounts=[r for r in balances(request.user) if r.client_id==client.pk] if request.user.has_perm('core.view_receivable') else []
@@ -182,10 +182,12 @@ def price_edit(request,pk):
     price=get_object_or_404(Price.objects.select_related('company','product','client'),pk=pk,company__in=companies(request.user))
     current=prices_on(timezone.localdate()).filter(company=price.company,product=price.product,client=price.client)
     amount=current.get().amount if current.count()==1 else None
-    form=PriceAmountForm(request.POST or None,initial={'amount':amount,'billing_unit':current.get().billing_unit or 'PRODUCT' if current.count()==1 else ''})
+    condition=current.get() if current.count()==1 else None
+    form=PriceAmountForm(request.POST or None,initial={'amount':amount,'billing_unit':condition.billing_unit or 'PRODUCT' if condition else '',
+        'billing_factor':condition.billing_factor if condition else None,'effective_on':condition.valid_from if condition and condition.amount==0 else None})
     if request.method=='POST' and form.is_valid():
         try:
-            set_current_price(request.user,price.company,price.product,form.cleaned_data['amount'],price.client,billing_unit=form.cleaned_data.get('billing_unit'))
+            set_current_price(request.user,price.company,price.product,form.cleaned_data['amount'],price.client,billing_unit=form.cleaned_data.get('billing_unit'),billing_factor=form.cleaned_data.get('billing_factor'),effective_on=form.cleaned_data.get('effective_on'))
             messages.success(request,'Preço atualizado. O novo valor fica ativo até você alterá-lo novamente.')
             return redirect('records',kind='precos')
         except ValidationError as exc:form.add_error(None,exc)

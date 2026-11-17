@@ -10,6 +10,8 @@ from .services import authorize
 from .workflow import event
 from .catalog import product_available
 
+_UNSET=object()
+
 
 @transaction.atomic
 def set_price(user, company, product, amount, start, client=None):
@@ -37,7 +39,7 @@ def set_price(user, company, product, amount, start, client=None):
 
 
 @transaction.atomic
-def set_current_price(user, company, product, amount, client=None, billing_unit=None, effective_on=None):
+def set_current_price(user, company, product, amount, client=None, billing_unit=None, effective_on=None, billing_factor=_UNSET):
     """Troca o preço agora; datas e substituições são registradas internamente."""
     authorize(user, company, 'core.change_price')
     Company.objects.select_for_update().get(pk=company.pk)
@@ -48,6 +50,11 @@ def set_current_price(user, company, product, amount, client=None, billing_unit=
     today = effective_on or timezone.localdate()
     rows = Price.objects.select_for_update().filter(company=company, product=product, client=client, superseded=False)
     current = list(rows.filter(valid_from__lte=today).filter(Q(valid_until__isnull=True) | Q(valid_until__gte=today)))
+    inherited=current[0] if len(current)==1 else None
+    if inherited is None:
+        from .services import price_condition_for
+        try:inherited=price_condition_for(company,client,product,today)
+        except ValidationError:pass
     if billing_unit:
         basis='' if billing_unit=='PRODUCT' else billing_unit
     elif len(current)==1:
@@ -57,10 +64,11 @@ def set_current_price(user, company, product, amount, client=None, billing_unit=
         try:basis=price_condition_for(company,client,product,today).billing_unit
         except ValidationError:basis=''
     from .billing import conversion
-    conversion(product,basis)
-    price = Price(company=company, product=product, client=client, amount=amount, valid_from=today,billing_unit=basis)
+    factor=(inherited.billing_factor if inherited and basis==inherited.billing_unit else None) if billing_factor is _UNSET else billing_factor
+    conversion(product,basis,factor)
+    price = Price(company=company, product=product, client=client, amount=amount, valid_from=today,billing_unit=basis,billing_factor=factor)
     price.full_clean()
-    if len(current) == 1 and current[0].amount == amount and current[0].billing_unit == basis and current[0].valid_until is None and not rows.filter(valid_from__gt=today).exists():
+    if len(current) == 1 and current[0].amount == amount and current[0].billing_unit == basis and current[0].billing_factor==factor and current[0].valid_until is None and not rows.filter(valid_from__gt=today).exists():
         return current[0]
     for old in rows.filter(Q(valid_until__isnull=True) | Q(valid_until__gte=today)):
         before = {'amount': str(old.amount), 'valid_from': str(old.valid_from), 'valid_until': str(old.valid_until), 'superseded': old.superseded}
@@ -73,7 +81,7 @@ def set_current_price(user, company, product, amount, client=None, billing_unit=
             old.save(update_fields=['superseded'])
         event(user, old, 'SUBSTITUIR_PRECO', before, {'valid_until': str(old.valid_until), 'superseded': old.superseded}, reason='Novo preço atual informado, sem prazo de término.')
     price.save()
-    event(user, price, 'DEFINIR_PRECO_ATUAL', after={'amount': str(amount), 'billing_unit':basis or product.unit, 'valid_from': str(today), 'client': str(client.pk) if client else ''})
+    event(user, price, 'DEFINIR_PRECO_ATUAL', after={'amount': str(amount), 'billing_unit':basis or product.unit,'billing_factor':str(factor) if factor is not None else None, 'valid_from': str(today), 'client': str(client.pk) if client else ''})
     return price
 
 

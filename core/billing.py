@@ -3,9 +3,14 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 
 
-def conversion(product, billing_unit):
+def conversion(product, billing_unit, factor=None):
     unit = product.unit.upper()
     billing_unit = billing_unit or product.unit
+    if factor is not None:
+        factor=Decimal(factor)
+        if not factor.is_finite() or factor<=0 or unit!='UN' or billing_unit!='KG':
+            raise ValidationError('O fator em kg por unidade exige produto em UN, faturamento em KG e valor positivo.')
+        return {'billing_unit':'KG','billing_factor':factor}
     if billing_unit == product.unit:
         return {'billing_unit': product.unit, 'billing_factor': Decimal(1)}
     if billing_unit == 'KG' and unit == 'KG':
@@ -32,7 +37,8 @@ def configure_item(item, selection=''):
         price = None
     billing_unit = item.product.unit if selection == 'PRODUCT' else selection
     billing_unit = billing_unit or (price.billing_unit if price else '') or item.product.unit
-    for key, value in conversion(item.product, billing_unit).items(): setattr(item, key, value)
+    factor=price.billing_factor if price and billing_unit==(price.billing_unit or item.product.unit) else None
+    for key, value in conversion(item.product, billing_unit, factor).items(): setattr(item, key, value)
     validate_quantity(item)
     return item
 
@@ -40,8 +46,11 @@ def configure_item(item, selection=''):
 def item_price(item):
     from .services import price_condition_for
     price = price_condition_for(item.order.company, item.order.client, item.product, item.order.date)
+    if price.amount<=0:raise ValidationError('Preço zerado: informe o valor negociado deste produto antes de faturar.')
     if (price.billing_unit or item.product.unit) != item.billed_unit:
         raise ValidationError('A unidade do preço difere do faturamento do pedido. Confira a condição negociada antes de emitir.')
+    if price.billing_factor is not None and price.billing_factor!=item.billing_factor:
+        raise ValidationError('O fator de conversão do preço difere do pedido. Confira a condição negociada antes de faturar.')
     return price.amount
 
 

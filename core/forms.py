@@ -11,7 +11,15 @@ WEEKDAYS=[(1,'Segunda'),(2,'Terça'),(3,'Quarta'),(4,'Quinta'),(5,'Sexta'),(6,'S
 def billing_unit_field():
     return forms.ChoiceField(label='Unidade do faturamento / preço', required=False,
         choices=[('', 'Usar condição já cadastrada'), ('PRODUCT', 'Unidade do produto'), ('KG', 'Quilograma (KG)')],
-        help_text='Em kg, informe o preço por kg. Para pães pedidos em unidades, cadastre o peso em gramas no produto.')
+        help_text='Em kg, informe o preço por kg e o fator em kg por unidade, ou use o peso cadastrado no produto.')
+
+def billing_factor_field():
+    return forms.DecimalField(label='Fator de conversão (kg por unidade)',required=False,min_value=Decimal('.000001'),max_digits=15,decimal_places=6,
+        help_text='Ex.: 35 g = 0,035 kg; 65 g = 0,065 kg. Em branco, usa o peso do produto. Para aplicar o fator, selecione faturamento em KG.')
+
+def price_effective_field():
+    return forms.DateField(label='Aplicar o preço a partir de (opcional)',required=False,widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}),
+        help_text='Para pedidos antigos ainda sem preço, informe a primeira data do período. Pedidos com valor já confirmado preservam o histórico.')
 
 class ScopedForm(forms.ModelForm):
     def __init__(self,*args,user,**kwargs):
@@ -54,6 +62,8 @@ class ProductForm(ScopedForm):
 
 class PriceForm(ScopedForm):
     billing_unit=billing_unit_field()
+    billing_factor=billing_factor_field()
+    effective_on=price_effective_field()
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
     class Meta:
         model=Price;fields=['company','client','product','amount']
@@ -61,6 +71,8 @@ class PriceForm(ScopedForm):
 
 class PriceAmountForm(forms.Form):
     billing_unit=billing_unit_field()
+    billing_factor=billing_factor_field()
+    effective_on=price_effective_field()
     amount=forms.DecimalField(label='Preço de venda atual (R$)',min_value=0,max_digits=15,decimal_places=4)
 
 class RecurrenceForm(ScopedForm):
@@ -120,6 +132,7 @@ class ManualItemForm(forms.Form):
 
 class ClientPriceItemForm(forms.Form):
     billing_unit=billing_unit_field()
+    billing_factor=billing_factor_field()
     product=forms.ModelChoiceField(queryset=Product.objects.none(),label='Produto')
     amount=forms.DecimalField(label='Preço para este cliente (R$)',min_value=0,max_digits=15,decimal_places=4)
     def __init__(self,*args,user,**kwargs):
@@ -157,6 +170,8 @@ class ClientRoutineForm(forms.Form):
 
 class InlinePriceForm(forms.Form):
     billing_unit=billing_unit_field()
+    billing_factor=billing_factor_field()
+    effective_on=price_effective_field()
     product = forms.ModelChoiceField(queryset=Product.objects.none(), label='Produto')
     amount = forms.DecimalField(label='Valor negociado (R$)', min_value=0, max_digits=15, decimal_places=4)
     def __init__(self, *args, company, **kwargs):

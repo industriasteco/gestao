@@ -147,3 +147,27 @@ class WeightBillingTests(TestCase):
         Price.objects.create(company=self.company,product=self.bread,amount=Decimal('10'),billing_unit='KG',valid_from=self.day)
         price=set_current_price(self.user,self.company,self.bread,Decimal('9'),other)
         self.assertEqual(price.billing_unit,'KG')
+
+    def test_client_factor_overrides_weight_without_changing_other_clients(self):
+        set_current_price(self.user,self.company,self.bread,Decimal('9'),self.customer,billing_unit='KG',billing_factor=Decimal('.040'),effective_on=self.day)
+        order,item=self.order()
+        self.assertEqual(item.billed_quantity,Decimal('4'))
+        self.assertEqual(subtotal(item,item_price(item)),Decimal('36.00'))
+        other=Client.objects.create(company=self.company,name='Outro cliente artificial')
+        Price.objects.create(company=self.company,client=other,product=self.bread,amount=9,billing_unit='KG',valid_from=self.day)
+        order.client=other;order.save()
+        self.assertEqual(configure_item(item).billing_factor,Decimal('.035'))
+
+    def test_zero_placeholder_can_be_priced_retroactively_with_client_factor(self):
+        zero=set_current_price(self.user,self.company,self.bread,Decimal(0),self.customer,billing_unit='PRODUCT',effective_on=self.day)
+        order,item=self.order()
+        with self.assertRaisesMessage(ValidationError,'Preço zerado'):item_price(item)
+        response=self.client.post(f'/precos/{zero.pk}/',{'amount':'8.50','billing_unit':'KG','billing_factor':'0.040','effective_on':str(self.day)})
+        self.assertEqual(response.status_code,302)
+        item=configure_item(item)
+        self.assertEqual(subtotal(item,item_price(item)),Decimal('34.00'))
+
+    def test_invalid_factor_unit_does_not_replace_price(self):
+        with self.assertRaises(ValidationError):
+            set_current_price(self.user,self.company,self.bread,Decimal(9),self.customer,billing_unit='PRODUCT',billing_factor=Decimal('.035'),effective_on=self.day)
+        self.assertEqual(Price.objects.filter(client=self.customer,product=self.bread,superseded=False).count(),1)

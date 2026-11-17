@@ -19,21 +19,22 @@
       const quantity = Number(row.querySelector('[name$="-quantity"]').value);
       let factor = 1;
       if (unit === 'KG' && product.unit.toUpperCase() !== 'KG') {
-        if (product.unit.toUpperCase() !== 'UN' || !(Number(product.weight_g) > 0)) {
-          output.textContent = 'Cadastre o peso por unidade em gramas no produto para converter em kg.'; continue;
+        const configured = condition && (condition.unit || product.unit) === unit ? Number(condition.factor) : 0;
+        factor = configured > 0 ? configured : Number(product.weight_g) / 1000;
+        if (product.unit.toUpperCase() !== 'UN' || !(factor > 0)) {
+          output.textContent = 'Cadastre o fator de conversão do cliente ou o peso do produto para converter em kg.'; continue;
         }
         if (!Number.isInteger(quantity)) {
           output.textContent = 'Informe uma quantidade inteira de pães em unidades.'; continue;
         }
-        factor = Number(product.weight_g) / 1000;
       }
       const negotiated = row.querySelector('[name$="-client_price"]')?.value;
       const amount = negotiated !== undefined && negotiated !== '' ? Number(negotiated) : condition ? Number(condition.amount) : null;
       const mismatch = !negotiated && condition && (condition.unit || product.unit) !== unit;
       let message = `${number(quantity)} ${product.unit} → ${number(quantity * factor)} ${unit} para faturar.`;
-      if (factor !== 1) message += ` Fator: ${number(factor)} kg por unidade (${number(product.weight_g)} g).`;
+      if (factor !== 1) message += ` Fator: ${number(factor)} kg por unidade (${number(factor * 1000)} g).`;
       if (mismatch) message += ' Confira o preço: a condição cadastrada usa outra unidade de faturamento.';
-      else if (amount !== null && Number.isFinite(amount)) message += ` ${money(amount)}/${unit} · Total previsto: ${money(quantity * factor * amount)}.`;
+      else if (amount !== null && amount > 0 && Number.isFinite(amount)) message += ` ${money(amount)}/${unit} · Total previsto: ${money(quantity * factor * amount)}.`;
       else message += ' Preço pendente de cadastro.';
       output.textContent = message;
     }

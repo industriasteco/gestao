@@ -20,7 +20,7 @@ from .catalog import products_for_user,product_available,product_catalog_label,v
 from .billing import configure_item,item_price
 
 def price_billing_data(rows):
-    return [{'id':str(p.pk),'company':str(p.company_id),'client':str(p.client_id or ''),'product':str(p.product_id),'unit':p.billing_unit,'amount':str(p.amount),'start':str(p.valid_from),'end':str(p.valid_until or '')} for p in rows]
+    return [{'id':str(p.pk),'company':str(p.company_id),'client':str(p.client_id or ''),'product':str(p.product_id),'unit':p.billing_unit,'factor':str(p.billing_factor or ''),'amount':str(p.amount),'start':str(p.valid_from),'end':str(p.valid_until or '')} for p in rows]
 
 @login_required
 def guide(request):return render(request,'core/guide.html')
@@ -47,7 +47,7 @@ def records(request,kind):
                 with transaction.atomic():
                     if kind=='precos':
                         data=form.cleaned_data
-                        obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'),billing_unit=data.get('billing_unit'))
+                        obj=set_current_price(request.user,data['company'],data['product'],data['amount'],data.get('client'),billing_unit=data.get('billing_unit'),billing_factor=data.get('billing_factor'),effective_on=data.get('effective_on'))
                     else:
                         obj=form.save()
                         if kind=='clientes':save_client_prices(request.user,obj,price_rows)
@@ -237,7 +237,7 @@ def quick_record(request,kind):
     try:price_rows=client_prices_data(client_prices,company) if client_prices is not None else []
     except ValidationError as exc:return JsonResponse({'message':'; '.join(exc.messages)},status=400)
     values={name:str(value) if value is not None else '' for name,value in form.cleaned_data.items()}
-    if client_prices is not None:values['prices']=[{'product':str(row['product'].pk),'amount':str(row['amount']),'billing_unit':row.get('billing_unit','')} for row in price_rows]
+    if client_prices is not None:values['prices']=[{'product':str(row['product'].pk),'amount':str(row['amount']),'billing_unit':row.get('billing_unit',''),'billing_factor':str(row.get('billing_factor') or '')} for row in price_rows]
     created=False
     try:
         with transaction.atomic():

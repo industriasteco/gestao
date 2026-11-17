@@ -65,8 +65,14 @@ class Price(Entity):
     valid_until = models.DateField(null=True, blank=True)
     superseded = models.BooleanField(default=False)
     billing_unit = models.CharField(max_length=20, blank=True, default='', choices=[('', 'Unidade do produto'), ('KG', 'Quilograma (KG)')])
+    billing_factor = models.DecimalField(max_digits=15, decimal_places=6, null=True, blank=True, validators=[MinValueValidator(Decimal('.000001'))])
+    @property
+    def kg_per_unit(self):
+        if self.billing_factor is not None:return self.billing_factor
+        if self.product.unit.upper()=='UN' and self.product.unit_weight_g:return self.product.unit_weight_g/Decimal(1000)
+        return None
     class Meta:
-        constraints = [models.CheckConstraint(condition=Q(amount__gte=0),name='positive_price'),models.CheckConstraint(condition=Q(valid_until__isnull=True)|Q(valid_until__gte=F('valid_from')),name='price_dates')]
+        constraints = [models.CheckConstraint(condition=Q(amount__gte=0),name='positive_price'),models.CheckConstraint(condition=Q(valid_until__isnull=True)|Q(valid_until__gte=F('valid_from')),name='price_dates'),models.CheckConstraint(condition=Q(billing_factor__isnull=True)|Q(billing_factor__gt=0),name='price_factor_positive')]
 
 class Recurrence(Entity):
     company = models.ForeignKey(Company, on_delete=models.PROTECT)
