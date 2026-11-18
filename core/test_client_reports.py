@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 from .models import Company,Client,Product,Price,Order,OrderItem,Audit,Document,Receivable,Membership
 from .billing import configure_item
-from .client_reports import create_client_report
+from .client_reports import create_client_report,orders_snapshot
 
 
 class ClientReportTests(TestCase):
@@ -50,6 +50,17 @@ class ClientReportTests(TestCase):
         self.assertNotEqual(updated.pk,doc.pk)
         self.assertEqual(Document.objects.count(),2)
         self.assertEqual(bytes(Document.objects.get(pk=doc.pk).data),bytes(doc.data))
+
+    def test_two_daily_deliveries_remain_distinct_and_morning_comes_first(self):
+        afternoon=self.order(quantity=30);afternoon.slot='Tarde';afternoon.save()
+        morning=self.order(quantity=35);morning.slot='Manhã';morning.save()
+        snapshot=orders_snapshot(self.customer,self.day,self.day,[afternoon,morning])
+        self.assertEqual([row['period'] for row in snapshot['items']],['Manhã','Tarde'])
+        self.assertEqual(snapshot['orders'],2)
+        document=create_client_report(self.user,self.customer,self.day,self.day)
+        text=' '.join(page.extract_text() for page in PdfReader(BytesIO(bytes(document.data))).pages)
+        self.assertIn('Entrega',text);self.assertIn('Manhã',text);self.assertIn('Tarde',text)
+        self.assertIn('35,07',text)
 
     def test_report_saved_in_client_history_and_pdf_route_requires_scope(self):
         self.order()

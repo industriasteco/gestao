@@ -28,7 +28,7 @@ def orders_snapshot(client, start, end, orders):
             if item.quantity<=0:continue
             if not item.billing_unit and item.unit_price_snapshot is None:configure_item(item)
             price=item.unit_price_snapshot if item.unit_price_snapshot is not None else item_price(item)
-            row={'order':str(order.pk),'item':str(item.pk),'date':str(order.date),'product_id':str(item.product_id),'product':item.product_name,
+            row={'order':str(order.pk),'item':str(item.pk),'date':str(order.date),'period':order.slot,'product_id':str(item.product_id),'product':item.product_name,
                  'ordered_quantity':decimal_text(item.quantity),'ordered_unit':item.unit,
                  'quantity':decimal_text(item.billed_quantity),'unit':item.billed_unit,'price':str(price),'billing_factor':str(item.billing_factor)}
             rows.append(row)
@@ -48,7 +48,11 @@ def compose_snapshot(client,start,end,rows):
         group['ordered_quantity']+=Decimal(row['ordered_quantity']);group['quantity']+=Decimal(row['quantity'])
         group['total']+=Decimal(row['total'])
     summary=[];total=Decimal(0)
-    rows.sort(key=lambda row:(row['date'],row['product'],row['item']))
+    def delivery_key(row):
+        period=row.get('period','').casefold()
+        rank=0 if 'manh' in period else 2 if 'tarde' in period else 1
+        return row['date'],rank,period,row['order'],row['product'],row['item']
+    rows.sort(key=delivery_key)
     for group in sorted(groups.values(),key=lambda group:(group['product'],group['unit'],group['price'])):
         amount=group['total']
         total+=amount
@@ -90,8 +94,14 @@ def client_report_pdf(snapshot):
     def br_date(value):return '/'.join(reversed(value.split('-')))
     logo=receipt_logo(snapshot['company_code'])
     heading=[p(snapshot['legal_name'] or snapshot['company']),p('CNPJ: '+snapshot['company_tax_id']),p(snapshot['address']),p(snapshot['phone'])]
+    if snapshot['legal_name'] and snapshot['legal_name']!=snapshot['company']:heading.insert(0,p(snapshot['company']))
     story=[]
-    if logo.exists():story.append(Table([[Image(str(logo),width=66,height=48,kind='proportional'),heading]],colWidths=[80,430]))
+    if logo.exists():
+        from PIL import Image as PillowImage
+        with PillowImage.open(logo) as bitmap:
+            bitmap.thumbnail((264,192),PillowImage.Resampling.LANCZOS)
+            logo_data=BytesIO();bitmap.save(logo_data,format='PNG');logo_data.seek(0)
+        story.append(Table([[Image(logo_data,width=66,height=48,kind='proportional'),heading]],colWidths=[80,430]))
     else:story.extend(heading)
     story.extend([Spacer(1,12),Paragraph('Demonstrativo de pedidos',styles['Title']),
         p('Cliente: '+snapshot['client']),p('Período: '+br_date(snapshot['start'])+' a '+br_date(snapshot['end'])),
@@ -109,11 +119,11 @@ def client_report_pdf(snapshot):
     story.extend([table(summary,[170,80,100,80,80]),Spacer(1,10),Paragraph('Total do período: R$ '+number(snapshot['total']),styles['Heading2']),
         p('Total calculado pela soma dos valores de cada linha diária, arredondados para centavos. O resumo por produto soma essas mesmas linhas.'),
         Spacer(1,14),Paragraph('Detalhamento por data',styles['Heading2'])])
-    details=[[p(v) for v in ['Data','Produto','Qtd. pedida','Peso / qtd. faturada','Preço / un.','Valor total']]]
+    details=[[p(v) for v in ['Data','Entrega','Produto','Qtd. pedida','Peso / qtd. faturada','Preço / un.','Valor total']]]
     for row in snapshot['items']:
-        details.append([p(br_date(row['date'])),p(row['product']),p(number(row['ordered_quantity'],3).rstrip('0').rstrip(',')+' '+row['ordered_unit']),
+        details.append([p(br_date(row['date'])),p(row.get('period','')),p(row['product']),p(number(row['ordered_quantity'],3).rstrip('0').rstrip(',')+' '+row['ordered_unit']),
             p(number(row['quantity'],6).rstrip('0').rstrip(',')+' '+row['unit']),p('R$ '+number(row['price'],4)+'/'+row['unit']),p('R$ '+number(row['total']))])
-    story.extend([table(details,[60,145,65,80,80,80]),Spacer(1,14),p('Documento para conferência de pedidos e valores. Não é nota fiscal.'),
+    story.extend([table(details,[58,54,128,52,60,72,86]),Spacer(1,14),p('Documento para conferência de pedidos e valores. Não é nota fiscal.'),
         p('Conferido por: ______________________________________  Data: ____/____/________')])
     def footer(canvas,doc):
         canvas.setFont('Helvetica',8);canvas.drawRightString(A4[0]-42,22,f'Página {doc.page}')
