@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from .models import Company,Recurrence
+from .models import (Client, ClientStatement, Closure, CommercialProposal, Company, Order,
+                     Price, Receivable, Recurrence, RouteStop, RuleItem)
 from .services import authorize
 from .management_services import set_current_price
 from .workflow import event
@@ -18,6 +19,43 @@ def client_prices_data(formset,company):
 
 def save_client_prices(user,client,rows):
     for row in rows:set_current_price(user,client.company,row['product'],row['amount'],client,billing_unit=row.get('billing_unit'),billing_factor=row.get('billing_factor'))
+
+
+@transaction.atomic
+def save_client_edit(user, form, source_id):
+    client = form.save(commit=False)
+    destination = client.company
+    list(Company.objects.select_for_update().filter(pk__in=[source_id, destination.pk]).order_by('pk'))
+    current = Client.objects.select_for_update().get(pk=client.pk)
+    if current.company_id != source_id:
+        raise ValidationError('A empresa deste cliente mudou. Reabra a ficha e tente novamente.')
+
+    moved = source_id != destination.pk
+    if moved:
+        linked_records = (Order, Receivable, Closure, ClientStatement, CommercialProposal, RouteStop)
+        if any(model.objects.filter(client=current).exists() for model in linked_records):
+            raise ValidationError(
+                'Este cliente tem pedidos, registros financeiros, propostas ou rotas vinculados. '
+                'A empresa só pode ser alterada em cadastros sem esses vínculos.'
+            )
+
+        prices = Price.objects.filter(client=current)
+        rules = Recurrence.objects.filter(client=current)
+        extras = RuleItem.objects.filter(rule__in=rules)
+        for rows in (prices, rules, extras):
+            if any(not product_available(row.product, destination) for row in rows.select_related('product__company')):
+                raise ValidationError('Há produtos de preços ou rotinas indisponíveis na empresa de destino.')
+        prices.update(company=destination)
+        rules.update(company=destination)
+
+    if form.changed_data:
+        client.save(update_fields=form.changed_data)
+    if 'recurring_weekdays' in form.changed_data:
+        sync_client_days(user, client, current.recurring_weekdays)
+    event(user, client, 'EDITAR_CLIENTE',
+          before={'company': str(source_id)} if moved else None,
+          after={'company': str(destination.pk)} if moved else None)
+    return moved
 
 
 def recurring_days(client):

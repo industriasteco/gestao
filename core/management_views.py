@@ -16,7 +16,7 @@ from .forms import (ClientForm, ProductForm, InlinePriceForm, PriceAmountForm, C
 from .services import companies, authorize, prices_on
 from .management_services import balances, receive, move_stock, set_current_price
 from .workflow import event
-from .client_setup import sync_client_days,save_recurring_items
+from .client_setup import save_client_edit,save_recurring_items
 from .operations import production_orders
 from .catalog import products_for_user,catalog_company_ids,visible_prices,product_catalog_label,price_scope_label
 
@@ -103,20 +103,28 @@ def client_routine_pending(user,client):
 @login_required
 def client_detail(request,pk):
     client=get_object_or_404(Client,pk=pk,company__in=companies(request.user))
-    previous_days=list(client.recurring_weekdays)
     edit=ClientForm(instance=client,user=request.user)
     price=InlinePriceForm(company=client.company)
     routine=ClientRoutineForm(company=client.company,initial={'weekdays':client.recurring_weekdays})
     if request.method=='POST':
         admin_only(request.user)
         if request.POST.get('action')=='edit':
-            edit=ClientForm(request.POST,instance=client,user=request.user)
-            edit.fields['company'].disabled=True
+            source_id = client.company_id
+            data = request.POST
+            if 'company' not in data:
+                data = data.copy()
+                data['company'] = str(source_id)
+            edit = ClientForm(data, instance=client, user=request.user)
             if edit.is_valid():
-                with transaction.atomic():
-                    Company.objects.select_for_update().get(pk=client.company_id)
-                    obj=edit.save();sync_client_days(request.user,obj,previous_days);event(request.user,obj,'EDITAR_CLIENTE')
-                messages.success(request,'Dados e dias recorrentes do cliente atualizados.');return redirect('client_detail',pk=pk)
+                try:
+                    moved = save_client_edit(request.user, edit, source_id)
+                except ValidationError as exc:
+                    edit.add_error('company', exc)
+                else:
+                    message = 'Empresa e dados do cliente atualizados.' if moved else 'Dados e dias recorrentes do cliente atualizados.'
+                    messages.success(request, message)
+                    return redirect('client_detail', pk=pk)
+            client.refresh_from_db()
         elif request.POST.get('action')=='routine':
             routine=ClientRoutineForm(request.POST,company=client.company)
             if routine.is_valid():

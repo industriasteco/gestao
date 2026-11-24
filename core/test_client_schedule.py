@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
-from .models import Company,Client,Product,Price,Recurrence,Order,Membership,Document
+from .models import Audit,Company,Client,Product,Price,Recurrence,Order,Membership,Document
 from .services import price_for,prepare
 from .client_setup import save_recurring_items
 
@@ -79,6 +79,60 @@ class ClientScheduleTests(TestCase):
         payload['recurring_weekdays']=['3'];self.client.post(f'/clientes/{self.customer.pk}/',payload)
         self.client.get(f'/pedidos-dia/?date={self.monday+timedelta(days=9)}')
         self.assertEqual(Order.objects.count(),2)
+
+    def test_client_edit_moves_company_prices_and_routines(self):
+        destination = Company.objects.create(code='TECO', name='TECO artificial')
+        price = Price.objects.create(company=self.company, client=self.customer, product=self.product,
+                                     amount=Decimal('1.40'), valid_from=self.today)
+        rule = save_recurring_items(
+            self.user, self.customer, [{'product': self.product, 'quantity': Decimal(12)}],
+            'Entrega', time(6), 'NOTURNO',
+        )[0]
+        url = f'/clientes/{self.customer.pk}/'
+        response = self.client.post(url, {
+            'action': 'edit', 'company': str(destination.pk), 'name': self.customer.name,
+            'recurring_weekdays': ['2', '4'],
+        }, follow=True)
+        self.assertRedirects(response, url)
+        self.assertContains(response, 'Empresa e dados do cliente atualizados.')
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.company, destination)
+        price.refresh_from_db()
+        self.assertEqual(price.company, destination)
+        self.assertEqual(price.amount, Decimal('1.40'))
+        rule.refresh_from_db()
+        self.assertEqual(rule.company, destination)
+        self.assertEqual(rule.weekdays, [2, 4])
+        audit = Audit.objects.get(entity=str(self.customer.pk), action='EDITAR_CLIENTE')
+        self.assertEqual(audit.before, {'company': str(self.company.pk)})
+        self.assertEqual(audit.after, {'company': str(destination.pk)})
+
+    def test_client_company_change_with_existing_order_shows_error(self):
+        self.client.post('/novo-pedido/', self.order_data())
+        destination = Company.objects.create(code='TECO', name='TECO artificial')
+        response = self.client.post(f'/clientes/{self.customer.pk}/', {
+            'action': 'edit', 'company': str(destination.pk), 'name': 'Nome alterado',
+        })
+        self.assertContains(response, 'Este cliente tem pedidos')
+        self.assertEqual(response.context['client'].company, self.company)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.company, self.company)
+        self.assertEqual(self.customer.name, 'Cliente artificial')
+        self.assertEqual(Order.objects.get().company, self.company)
+        self.assertFalse(Recurrence.objects.exclude(company=self.company).exists())
+
+    def test_client_company_change_with_unavailable_product_shows_error(self):
+        destination = Company.objects.create(code='OTHER', name='Outra empresa')
+        price = Price.objects.create(company=self.company, client=self.customer, product=self.product,
+                                     amount=Decimal('1.40'), valid_from=self.today)
+        response = self.client.post(f'/clientes/{self.customer.pk}/', {
+            'action': 'edit', 'company': str(destination.pk), 'name': self.customer.name,
+        })
+        self.assertContains(response, 'Há produtos de preços ou rotinas indisponíveis')
+        self.customer.refresh_from_db()
+        price.refresh_from_db()
+        self.assertEqual(self.customer.company, self.company)
+        self.assertEqual(price.company, self.company)
 
     def test_history_legacy_rules_and_unprivileged_visits_do_not_generate_orders(self):
         rule=Recurrence.objects.create(company=self.company,client=self.customer,product=self.product,quantity=1,slot='Fixo',time=time(6),shift='NOTURNO',weekdays=list(range(1,8)),valid_from=self.today-timedelta(days=20),active=True)
