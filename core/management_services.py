@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
-from .models import Company, Product, Price, Receivable, Payment, StockItem, StockMovement
+from .models import Client, Company, Product, Price, Receivable, Payment, StockItem, StockMovement
 from .services import authorize
 from .workflow import event
 from .catalog import product_available
@@ -17,7 +17,7 @@ _UNSET=object()
 def set_price(user, company, product, amount, start, client=None):
     authorize(user, company, 'core.change_price')
     Company.objects.select_for_update().get(pk=company.pk)
-    if not product_available(product,company) or (client and client.company_id != company.pk):
+    if not product_available(product,company) or (client and not Client.objects.filter(pk=client.pk, company=company).exists()):
         raise ValidationError('Produto e cliente devem pertencer à empresa selecionada.')
     if not amount.is_finite() or amount < 0:
         raise ValidationError('Informe um preço válido.')
@@ -43,7 +43,7 @@ def set_current_price(user, company, product, amount, client=None, billing_unit=
     """Troca o preço agora; datas e substituições são registradas internamente."""
     authorize(user, company, 'core.change_price')
     Company.objects.select_for_update().get(pk=company.pk)
-    if not product_available(product,company) or (client and client.company_id != company.pk):
+    if not product_available(product,company) or (client and not Client.objects.filter(pk=client.pk, company=company).exists()):
         raise ValidationError('Produto e cliente devem pertencer à empresa selecionada.')
     if not amount.is_finite() or amount < 0:
         raise ValidationError('Informe um preço válido.')

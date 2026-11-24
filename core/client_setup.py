@@ -3,8 +3,10 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from .models import (Client, ClientStatement, Closure, CommercialProposal, Company, Order,
-                     Price, Receivable, Recurrence, RouteStop, RuleItem)
+from .billing import configure_item
+from .models import (Client, ClientStatement, Closure, ClosureLine, CommercialProposal, Company,
+                     Document, ManifestLine, Order, OrderItem, Price, Receivable, Recurrence,
+                     RouteStop, RuleItem, StatementLine)
 from .services import authorize
 from .management_services import set_current_price
 from .workflow import event
@@ -21,23 +23,66 @@ def save_client_prices(user,client,rows):
     for row in rows:set_current_price(user,client.company,row['product'],row['amount'],client,billing_unit=row.get('billing_unit'),billing_factor=row.get('billing_factor'))
 
 
+def orders_for_company_correction(client, destination):
+    orders = list(Order.objects.select_for_update().filter(client=client).order_by('pk'))
+    if any(order.status not in ('PRE_LANCADO', 'CONFERIDO') or order.issued_at or
+           order.issued_snapshot or order.commercial_number or order.delivered_at for order in orders):
+        raise ValidationError('Há pedidos com histórico de emissão, entrega ou cancelamento. Só pedidos em aberto podem acompanhar a correção da empresa.')
+
+    for model in (Document, ClosureLine, ManifestLine, StatementLine):
+        if model.objects.filter(order__in=orders).exists():
+            raise ValidationError('Há documentos, fechamentos ou romaneios vinculados aos pedidos deste cliente.')
+
+    if any(order.company_id != client.company_id for order in orders):
+        raise ValidationError('Há pedido com empresa diferente da empresa atual do cliente.')
+    if orders and (not destination.active or any(order.synthetic == destination.operational_enabled for order in orders)):
+        raise ValidationError('A empresa de destino precisa estar ativa e aceitar o mesmo tipo de operação dos pedidos em aberto.')
+
+    items = OrderItem.objects.filter(order__in=orders)
+    if items.filter(unit_price_snapshot__isnull=False).exists():
+        raise ValidationError('Há valor de emissão registrado em um pedido deste cliente.')
+    if any(not product_available(item.product, destination) for item in items.select_related('product__company')):
+        raise ValidationError('Há produto de um pedido em aberto indisponível na empresa de destino.')
+    return orders
+
+
+def correct_order_company(user, order, client):
+    source_id = order.company_id
+    parts = order.idempotency_key.split(':', 3)
+    if len(parts) == 4 and parts[0] in ('planned', 'operational') and parts[1] == str(source_id):
+        parts[1] = str(client.company_id)
+        key = ':'.join(parts)
+        if Order.objects.filter(idempotency_key=key).exclude(pk=order.pk).exists():
+            raise ValidationError('Já existe um pedido equivalente na empresa de destino.')
+        order.idempotency_key = key
+    order.company = client.company
+    order.client = client
+    order.save(update_fields=['company', 'idempotency_key'])
+    for item in order.items.select_related('product__company'):
+        configure_item(item)
+        item.save(update_fields=['billing_unit', 'billing_factor'])
+    event(user, order, 'CORRIGIR_EMPRESA_PEDIDO', {'company': str(source_id)}, {'company': str(client.company_id)})
+
+
 @transaction.atomic
 def save_client_edit(user, form, source_id):
     client = form.save(commit=False)
     destination = client.company
-    list(Company.objects.select_for_update().filter(pk__in=[source_id, destination.pk]).order_by('pk'))
+    list(Company.objects.select_for_update(no_key=True).filter(pk__in=[source_id, destination.pk]).order_by('pk'))
     current = Client.objects.select_for_update().get(pk=client.pk)
     if current.company_id != source_id:
         raise ValidationError('A empresa deste cliente mudou. Reabra a ficha e tente novamente.')
 
     moved = source_id != destination.pk
+    orders = []
     if moved:
-        linked_records = (Order, Receivable, Closure, ClientStatement, CommercialProposal, RouteStop)
+        linked_records = (Receivable, Closure, ClientStatement, CommercialProposal, RouteStop)
         if any(model.objects.filter(client=current).exists() for model in linked_records):
             raise ValidationError(
-                'Este cliente tem pedidos, registros financeiros, propostas ou rotas vinculados. '
+                'Este cliente tem registros financeiros, propostas ou rotas vinculados. '
                 'A empresa só pode ser alterada em cadastros sem esses vínculos.'
             )
+        orders = orders_for_company_correction(current, destination)
 
         prices = Price.objects.filter(client=current)
         rules = Recurrence.objects.filter(client=current)
@@ -50,12 +95,14 @@ def save_client_edit(user, form, source_id):
 
     if form.changed_data:
         client.save(update_fields=form.changed_data)
+    for order in orders:
+        correct_order_company(user, order, client)
     if 'recurring_weekdays' in form.changed_data:
         sync_client_days(user, client, current.recurring_weekdays)
     event(user, client, 'EDITAR_CLIENTE',
           before={'company': str(source_id)} if moved else None,
           after={'company': str(destination.pk)} if moved else None)
-    return moved
+    return moved, len(orders)
 
 
 def recurring_days(client):
@@ -80,6 +127,8 @@ def sync_client_days(user,client,previous_days):
 def save_recurring_items(user,client,lines,slot,time,shift,notes='',origin=None,replace=False,weekdays=None):
     authorize(user,client.company,'core.add_recurrence')
     Company.objects.select_for_update().get(pk=client.company_id)
+    if not Client.objects.filter(pk=client.pk, company_id=client.company_id).exists():
+        raise ValidationError('A empresa deste cliente mudou. Reabra a ficha e tente novamente.')
     follow_client_days=weekdays is None
     if follow_client_days:
         days=recurring_days(client)
