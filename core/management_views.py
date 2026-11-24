@@ -117,11 +117,13 @@ def client_detail(request,pk):
             edit = ClientForm(data, instance=client, user=request.user)
             if edit.is_valid():
                 try:
-                    moved = save_client_edit(request.user, edit, source_id)
+                    moved, moved_orders = save_client_edit(request.user, edit, source_id)
                 except ValidationError as exc:
                     edit.add_error('company', exc)
                 else:
                     message = 'Empresa e dados do cliente atualizados.' if moved else 'Dados e dias recorrentes do cliente atualizados.'
+                    if moved_orders:
+                        message += ' Os pedidos em aberto acompanharam a correção.'
                     messages.success(request, message)
                     return redirect('client_detail', pk=pk)
             client.refresh_from_db()

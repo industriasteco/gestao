@@ -26,7 +26,11 @@ def permitted(permission):
             if not order.synthetic:
                 from .operations import require_operational
                 require_operational(order.company)
-            return fn(user,order_id,*args,**kwargs)
+            with transaction.atomic():
+                current_company = Order.objects.select_for_update().values_list('company_id', flat=True).get(pk=order_id)
+                if current_company != order.company_id:
+                    raise ValidationError('A empresa deste pedido mudou. Reabra o pedido e tente novamente.')
+                return fn(user,order_id,*args,**kwargs)
         return wrapper
     return decorator
 
@@ -36,7 +40,7 @@ def store_document(company,key,kind,data,order=None):
 @permitted('core.issue_document')
 @transaction.atomic
 def issue(user,order_id):
-    order=Order.objects.select_for_update().select_related('company','client').get(pk=order_id)
+    order=Order.objects.select_related('company','client').get(pk=order_id)
     if order.status in ('EMITIDO','ENTREGUE','LIBERADO_FECHAMENTO','FECHADO'):
         return Document.objects.get(key=f'order:{order.pk}:v1')
     if order.status!='CONFERIDO':raise ValidationError('Confira a produção antes de emitir.')

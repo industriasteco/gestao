@@ -178,6 +178,8 @@ def new_order(request):
                     if previous!=condition:raise ValidationError('Informe o mesmo preço e unidade de faturamento nas linhas repetidas de um produto.')
             with transaction.atomic():
                 Company.objects.select_for_update().get(pk=company.pk)
+                if not Client.objects.filter(pk=form.cleaned_data['client'].pk, company=company).exists():
+                    raise ValidationError('A empresa deste cliente mudou. Reabra o formulário e tente novamente.')
                 key='manual:'+str(form.cleaned_data['key'])
                 order=Order.objects.filter(idempotency_key=key).first()
                 if order is None:

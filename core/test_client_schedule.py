@@ -107,13 +107,44 @@ class ClientScheduleTests(TestCase):
         self.assertEqual(audit.before, {'company': str(self.company.pk)})
         self.assertEqual(audit.after, {'company': str(destination.pk)})
 
-    def test_client_company_change_with_existing_order_shows_error(self):
+    def test_client_company_change_moves_open_order_and_prevents_duplicate_preparation(self):
+        self.company.operational_enabled = True
+        self.company.save(update_fields=['operational_enabled'])
+        destination = Company.objects.create(code='TECO', name='TECO artificial', operational_enabled=True)
+        rule = save_recurring_items(
+            self.user, self.customer, [{'product': self.product, 'quantity': Decimal(12)}],
+            'Entrega', time(6), 'NOTURNO',
+        )[0]
+        prepare(self.user, self.monday, automatic_only=True)
+        order = Order.objects.get()
+        original_key = order.idempotency_key
+        url = f'/clientes/{self.customer.pk}/'
+        response = self.client.post(url, {
+            'action': 'edit', 'company': str(destination.pk), 'name': self.customer.name,
+            'recurring_weekdays': ['1', '3', '5'],
+        }, follow=True)
+        self.assertContains(response, 'Os pedidos em aberto acompanharam a correção.')
+        order.refresh_from_db()
+        rule.refresh_from_db()
+        self.assertEqual(order.company, destination)
+        self.assertEqual(order.recurrence, rule)
+        self.assertEqual(rule.company, destination)
+        self.assertEqual(order.status, 'PRE_LANCADO')
+        self.assertEqual(order.items.get().quantity, 12)
+        self.assertEqual(order.idempotency_key, original_key.replace(str(self.company.pk), str(destination.pk), 1))
+        self.assertEqual(prepare(self.user, self.monday, automatic_only=True), 0)
+        self.assertEqual(Order.objects.count(), 1)
+        self.assertEqual(Audit.objects.get(entity=str(order.pk), action='CORRIGIR_EMPRESA_PEDIDO').after,
+                         {'company': str(destination.pk)})
+
+    def test_client_company_change_with_issued_order_shows_error(self):
         self.client.post('/novo-pedido/', self.order_data())
+        Order.objects.update(status='EMITIDO', issued_at=timezone.now())
         destination = Company.objects.create(code='TECO', name='TECO artificial')
         response = self.client.post(f'/clientes/{self.customer.pk}/', {
             'action': 'edit', 'company': str(destination.pk), 'name': 'Nome alterado',
         })
-        self.assertContains(response, 'Este cliente tem pedidos')
+        self.assertContains(response, 'Há pedidos com histórico de emissão')
         self.assertEqual(response.context['client'].company, self.company)
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.company, self.company)
